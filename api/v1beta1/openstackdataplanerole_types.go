@@ -38,7 +38,7 @@ type OpenStackDataPlaneRoleSpec struct {
 
 	// +kubebuilder:validation:Optional
 	// NodeTemplate - node attributes specific to this roles
-	NodeTemplate NodeSection `json:"nodeTemplate,omitempty"`
+	NodeTemplate map[string]NodeSection `json:"nodeTemplate,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	//
