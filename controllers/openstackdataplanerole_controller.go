@@ -19,7 +19,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"sort"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -128,7 +127,11 @@ func (r *OpenStackDataPlaneRoleReconciler) Reconcile(ctx context.Context, req ct
 		// update the Ready condition based on the sub conditions
 		if instance.Status.Conditions.AllSubConditionIsTrue() {
 			instance.Status.Conditions.MarkTrue(
-				condition.ReadyCondition, dataplanev1.DataPlaneRoleReadyMessage)
+				condition.ReadyCondition, condition.ReadyMessage)
+		}
+		// update the overall status condition if service is ready
+		if instance.IsReady() {
+			instance.Status.Conditions.MarkTrue(condition.ReadyCondition, dataplanev1.DataPlaneRoleReadyMessage)
 		} else {
 			// something is not ready so reset the Ready condition
 			instance.Status.Conditions.MarkUnknown(
@@ -175,34 +178,8 @@ func (r *OpenStackDataPlaneRoleReconciler) Reconcile(ctx context.Context, req ct
 		delete(instance.ObjectMeta.Labels, "openstackdataplane")
 	}
 
-	// Get List of Nodes with matching Role Label
-	nodes := &dataplanev1.OpenStackDataPlaneNodeList{}
-
-	listOpts := []client.ListOption{
-		client.InNamespace(instance.GetNamespace()),
-	}
-	fields := client.MatchingFields{"spec.role": instance.Name}
-	listOpts = append(listOpts, fields)
-
-	err = r.Client.List(ctx, nodes, listOpts...)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	logger.Info("found nodes", "total", len(nodes.Items))
-
-	// Order the nodes based on Name
-	sort.SliceStable(nodes.Items, func(i, j int) bool {
-		return nodes.Items[i].Name < nodes.Items[j].Name
-	})
-
-	// Validate NodeSpecs
-	err = instance.Validate(nodes.Items)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-
 	// Ensure IPSets Required for Nodes
-	allIPSets, isReady, err := deployment.EnsureIPSets(ctx, helper, instance, nodes)
+	allIPSets, isReady, err := deployment.EnsureIPSets(ctx, helper, instance)
 	if err != nil || !isReady {
 		return ctrl.Result{}, err
 	}
@@ -210,7 +187,7 @@ func (r *OpenStackDataPlaneRoleReconciler) Reconcile(ctx context.Context, req ct
 	// Ensure DNSData Required for Nodes
 	dnsAddresses, dnsClusterAddresses, ctlplaneSearchDomain, isReady, err := deployment.EnsureDNSData(
 		ctx, helper,
-		instance, nodes, allIPSets)
+		instance, allIPSets)
 	if err != nil || !isReady {
 		return ctrl.Result{}, err
 	}
@@ -222,7 +199,7 @@ func (r *OpenStackDataPlaneRoleReconciler) Reconcile(ctx context.Context, req ct
 		secretKeys = append(secretKeys, AnsibleSSHPrivateKey)
 		if len(instance.Spec.BaremetalSetTemplate.BaremetalHosts) > 0 {
 			secretKeys = append(secretKeys, AnsibleSSHAuthorizedKeys)
-		}
+		} 
 		_, result, err = secret.VerifySecret(
 			ctx,
 			types.NamespacedName{Namespace: instance.Namespace,
@@ -256,26 +233,19 @@ func (r *OpenStackDataPlaneRoleReconciler) Reconcile(ctx context.Context, req ct
 
 	// Reconcile BaremetalSet if required
 	if len(instance.Spec.BaremetalSetTemplate.BaremetalHosts) > 0 {
+
 		// Reset the RoleBareMetalProvisionReadyCondition to unknown
 		instance.Status.Conditions.MarkUnknown(dataplanev1.RoleBareMetalProvisionReadyCondition,
 			condition.InitReason, condition.InitReason)
 		isReady, err := deployment.DeployBaremetalSet(ctx, helper, instance,
-			nodes, allIPSets, dnsAddresses)
+			allIPSets, dnsAddresses)
 		if err != nil || !isReady {
 			return ctrl.Result{}, err
-		}
-	}
-
-	// Ensure all nodes are in SetupReady state
-	setupReadyNodes := 0
-	for _, node := range nodes.Items {
-		if node.IsSetupReady() {
-			setupReadyNodes++
-		}
-	}
-
-	if setupReadyNodes < len(nodes.Items) {
-		return ctrl.Result{}, err
+		} 
+	} else {
+			instance.Status.Conditions.Remove(dataplanev1.RoleBareMetalProvisionReadyCondition)
+			instance.Status.Conditions.Remove(dataplanev1.RoleDNSDataReadyCondition)
+			instance.Status.Conditions.Remove(dataplanev1.RoleIPReservationReadyCondition)
 	}
 
 	// TODO: if the input hash changes or the nodes in the role is updated we should
@@ -295,19 +265,37 @@ func (r *OpenStackDataPlaneRoleReconciler) Reconcile(ctx context.Context, req ct
 
 	// Generate Role Inventory
 	roleConfigMap, err := deployment.GenerateRoleInventory(ctx, helper, instance,
-		nodes.Items, allIPSets, dnsAddresses)
+		allIPSets, dnsAddresses)
 	if err != nil {
 		util.LogErrorForObject(helper, err, fmt.Sprintf("Unable to generate inventory for %s", instance.Name), instance)
 		return ctrl.Result{}, err
 	}
 
+	// Verify Ansible SSH Secret
+	ansibleSSHPrivateKeySecret = instance.Spec.NodeTemplate.AnsibleSSHPrivateKeySecret
+	if ansibleSSHPrivateKeySecret != "" {
+		_, result, err = secret.VerifySecret(
+			ctx,
+			types.NamespacedName{Namespace: instance.Namespace, Name: ansibleSSHPrivateKeySecret},
+			[]string{
+				"ssh-privatekey",
+			},
+			r.Client,
+			time.Duration(5)*time.Second,
+		)
+		if err != nil {
+			return result, err
+		}
+	}
+
 	// all setup tasks complete, mark SetupReadyCondition True
 	instance.Status.Conditions.MarkTrue(dataplanev1.SetupReadyCondition, condition.ReadyMessage)
 
-	logger.Info("Role", "DeployStrategy", instance.Spec.DeployStrategy.Deploy,
+	// Trigger executions based on the OpenStackDataPlane Controller state.
+	r.Log.Info("Role", "DeployStrategy", instance.Spec.DeployStrategy.Deploy,
 		"Role.Namespace", instance.Namespace, "Role.Name", instance.Name)
 	if instance.Spec.DeployStrategy.Deploy {
-		logger.Info("Starting DataPlaneRole deploy")
+		logger.Info("Deploying Role: %s", instance.Name)
 		logger.Info("Set Status.Deployed to false", "instance", instance)
 		instance.Status.Deployed = false
 		logger.Info("Set DeploymentReadyCondition false", "instance", instance)
@@ -322,7 +310,7 @@ func (r *OpenStackDataPlaneRoleReconciler) Reconcile(ctx context.Context, req ct
 			}
 		}
 		deployResult, err := deployment.Deploy(
-			ctx, helper, instance, nodes, ansibleSSHPrivateKeySecret,
+			ctx, helper, instance, ansibleSSHPrivateKeySecret,
 			roleConfigMap, &instance.Status, ansibleEESpec,
 			instance.Spec.Services, instance)
 		if err != nil {
@@ -343,6 +331,13 @@ func (r *OpenStackDataPlaneRoleReconciler) Reconcile(ctx context.Context, req ct
 		instance.Status.Deployed = true
 		logger.Info("Set DeploymentReadyCondition true", "instance", instance)
 		instance.Status.Conditions.Set(condition.TrueCondition(condition.DeploymentReadyCondition, condition.DeploymentReadyMessage))
+
+		// Explicitly set instance.Spec.Deploy = false
+		// We don't want another deploy triggered by any reconcile request, it should
+		// only be triggered when the user (or another controller) specifically
+		// sets it to true.
+		logger.Info("Set DeployStrategy.Deploy to false")
+		instance.Spec.DeployStrategy.Deploy = false
 	}
 
 	// Set DeploymentReadyCondition to False if it was unknown.
@@ -364,18 +359,18 @@ func (r *OpenStackDataPlaneRoleReconciler) SetupWithManager(mgr ctrl.Manager) er
 		// For each DNSMasq change event get the list of all
 		// OpenStackDataPlaneRole to trigger reconcile for the
 		// ones in the same namespace.
-		roles := &dataplanev1.OpenStackDataPlaneRoleList{}
+		role := &dataplanev1.OpenStackDataPlaneRoleList{}
 
 		listOpts := []client.ListOption{
 			client.InNamespace(o.GetNamespace()),
 		}
-		if err := r.Client.List(context.Background(), roles, listOpts...); err != nil {
+		if err := r.Client.List(context.Background(), role, listOpts...); err != nil {
 			r.Log.Error(err, "Unable to retrieve OpenStackDataPlaneRoleList %w")
 			return nil
 		}
 
 		// For each role instance create a reconcile request
-		for _, i := range roles.Items {
+		for _, i := range role.Items {
 			name := client.ObjectKey{
 				Namespace: o.GetNamespace(),
 				Name:      i.Name,

@@ -25,8 +25,17 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-// NodeSection is a specification of the node attributes
-type NodeSection struct {
+// NodeTemplate is a specification of the node attributes
+type NodeTemplate struct {
+
+	// +kubebuilder:validation:Optional
+	// HostName - node name
+	HostName string `json:"hostName,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// NetworkAttachments is a list of NetworkAttachment resource names to pass to the ansibleee resource
+	// which allows to connect the ansibleee runner to the given network
+	NetworkAttachments []string `json:"networkAttachments,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	// NetworkConfig - Network configuration details. Contains os-net-config
@@ -56,6 +65,10 @@ type NodeSection struct {
 	AnsibleVars map[string]json.RawMessage `json:"ansibleVars,omitempty"`
 
 	// +kubebuilder:validation:Optional
+	// AnsibleHost host used for Ansible connections
+	AnsibleHost string `json:"ansibleHost,omitempty"`
+
+	// +kubebuilder:validation:Optional
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,xDescriptors={"urn:alm:descriptor:io.kubernetes:Secret"}
 	// AnsibleSSHPrivateKeySecret Private SSH Key secret containing private SSH
 	// key for connecting to node. Must be of the form:
@@ -78,7 +91,6 @@ type NodeSection struct {
 
 // DeployStrategySection for fields controlling the deployment
 type DeployStrategySection struct {
-
 	// +kubebuilder:default=true
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,xDescriptors={"urn:alm:descriptor:com.tectonic.ui:booleanSwitch"}
 	// Deploy boolean to trigger ansible execution

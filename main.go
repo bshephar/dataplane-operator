@@ -135,15 +135,6 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "OpenStackDataPlaneRole")
 		os.Exit(1)
 	}
-	if err = (&controllers.OpenStackDataPlaneNodeReconciler{
-		Client:  mgr.GetClient(),
-		Scheme:  mgr.GetScheme(),
-		Kclient: kclient,
-		Log:     ctrl.Log.WithName("controllers").WithName("OpenStackDataPlaneNode"),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "OpenStackDataPlaneNode")
-		os.Exit(1)
-	}
 
 	if strings.ToLower(os.Getenv("ENABLE_WEBHOOKS")) != "false" {
 		if err = (&dataplanev1.OpenStackDataPlane{}).SetupWebhookWithManager(mgr); err != nil {

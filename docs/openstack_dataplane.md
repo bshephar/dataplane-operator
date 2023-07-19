@@ -8,7 +8,7 @@
 * [AnsibleEESpec](#ansibleeespec)
 * [DeployStrategySection](#deploystrategysection)
 * [NetworkConfigSection](#networkconfigsection)
-* [NodeSection](#nodesection)
+* [NodeTemplate](#nodetemplate)
 * [OpenStackDataPlaneList](#openstackdataplanelist)
 * [OpenStackDataPlaneSpec](#openstackdataplanespec)
 * [OpenStackDataPlaneStatus](#openstackdataplanestatus)
@@ -53,18 +53,21 @@ NetworkConfigSection is a specification of the Network configuration details
 
 [Back to Custom Resources](#custom-resources)
 
-#### NodeSection
+#### NodeTemplate
 
-NodeSection is a specification of the node attributes
+NodeTemplate is a specification of the node attributes
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
+| hostName | HostName - node name | string | false |
+| networkAttachments | NetworkAttachments is a list of NetworkAttachment resource names to pass to the ansibleee resource which allows to connect the ansibleee runner to the given network | []string | false |
 | networkConfig | NetworkConfig - Network configuration details. Contains os-net-config related properties. | [NetworkConfigSection](#networkconfigsection) | false |
 | networks | Networks - Instance networks | []infranetworkv1.IPSetNetwork | false |
 | managementNetwork | ManagementNetwork - Name of network to use for management (SSH/Ansible) | string | false |
 | ansibleUser | AnsibleUser SSH user for Ansible connection | string | false |
 | ansiblePort | AnsiblePort SSH port for Ansible connection | int | false |
 | ansibleVars | AnsibleVars for configuring ansible | map[string]json.RawMessage | false |
+| ansibleHost | AnsibleHost host used for Ansible connections | string | false |
 | ansibleSSHPrivateKeySecret | AnsibleSSHPrivateKeySecret Private SSH Key secret containing private SSH key for connecting to node. Must be of the form: Secret.data.ssh-privatekey: <base64 encoded private key contents> <https://kubernetes.io/docs/concepts/configuration/secret/#ssh-authentication-secrets> | string | false |
 | extraMounts | ExtraMounts containing files which can be mounted into an Ansible Execution Pod | []storage.VolMounts | false |
 | userData | UserData  node specific user-data | *corev1.SecretReference | false |
@@ -101,7 +104,6 @@ OpenStackDataPlaneSpec defines the desired state of OpenStackDataPlane
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| nodes | Nodes - Map of nodes | map[string]OpenStackDataPlaneNodeSpec | false |
 | roles | Roles - Map of roles | map[string]OpenStackDataPlaneRoleSpec | false |
 | deployStrategy | DeployStrategy section to control how the node is deployed | [DeployStrategySection](#deploystrategysection) | false |
 

@@ -46,7 +46,6 @@ func Deploy(
 	ctx context.Context,
 	helper *helper.Helper,
 	obj client.Object,
-	nodes *dataplanev1.OpenStackDataPlaneNodeList,
 	sshKeySecret string,
 	inventoryConfigMap string,
 	status *dataplanev1.OpenStackDataPlaneStatus,
@@ -103,7 +102,7 @@ func Deploy(
 		)
 		// Some OpenStackDataPlaneService might need Kubernetes Services to be created
 		if len(foundService.Spec.Services) > 0 {
-			errKube := CreateKubeServices(&foundService, nodes, helper, make(map[string]string))
+			errKube := CreateKubeServices(&foundService, role, helper, make(map[string]string))
 			if errKube != nil {
 				return &ctrl.Result{}, errKube
 			}

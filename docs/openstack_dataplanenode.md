@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 
 ### Custom Resources
 
@@ -109,3 +110,6 @@ OpenStackDataPlaneNodeSpec defines the desired state of OpenStackDataPlaneNode
 | networkAttachments | NetworkAttachments is a list of NetworkAttachment resource names to pass to the ansibleee resource which allows to connect the ansibleee runner to the given network | []string | false |
 
 [Back to Custom Resources](#custom-resources)
+=======
+open api/v1beta1/openstackdataplanenode_types.go: no such file or directory
+>>>>>>> 5537f84 (Remove OpenStackDataPlaneNode CRD and Controller)
