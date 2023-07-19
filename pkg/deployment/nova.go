@@ -35,7 +35,7 @@ import (
 func DeployNovaExternalCompute(
 	ctx context.Context,
 	helper *helper.Helper,
-	node *dataplanev1.OpenStackDataPlaneNode,
+	role *dataplanev1.OpenStackDataPlaneRole,
 	owner client.Object,
 	sshKeySecret string,
 	inventoryConfigMap string,
@@ -45,46 +45,48 @@ func DeployNovaExternalCompute(
 ) (*novav1beta1.NovaExternalCompute, error) {
 	log := helper.GetLogger()
 
-	log.Info("NovaExternalCompute deploy", "OpenStackControlPlaneNode", node.Name, "novaTemplate", template)
+	novaExternalCompute := &novav1beta1.NovaExternalCompute{}
+	for nodeName := range role.Spec.NodeTemplate.Nodes {
+		log.Info("NovaExternalCompute deploy", "OpenStackControlPlaneNode", nodeName, "novaTemplate", template)
 
-	novaExternalCompute := &novav1beta1.NovaExternalCompute{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      node.GetName(),
-			Namespace: node.GetNamespace(),
-		},
-	}
-
-	_, err := controllerutil.CreateOrPatch(ctx, helper.GetClient(), novaExternalCompute, func() error {
-		if novaExternalCompute.ObjectMeta.Labels == nil {
-			novaExternalCompute.ObjectMeta.Labels = make(map[string]string)
+		novaExternalCompute := &novav1beta1.NovaExternalCompute{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      nodeName,
+				Namespace: role.GetNamespace(),
+			},
 		}
-		log.Info(fmt.Sprintf("NovaExternalCompute: Adding label %s=%s", "openstackdataplanenode", node.GetName()))
-		novaExternalCompute.ObjectMeta.Labels["openstackdataplanenode"] = node.GetName()
 
-		// We need to call the default ctor to get the unspecified fields defaulted according to the CRD defaults
-		// as otherwise golang would default those field to the golang empty value instead.
-		novaExternalCompute.Spec = novav1beta1.NewNovaExternalComputeSpec(inventoryConfigMap, sshKeySecret)
-		novaExternalCompute.Spec.CellName = template.CellName
-		novaExternalCompute.Spec.NovaInstance = template.NovaInstance
-		novaExternalCompute.Spec.CustomServiceConfig = template.CustomServiceConfig
-		// NOTE(gibi): if DeployStrategy.Deploy is false but Nova.Deploy is true
-		// then we never reach this point, so the Deploy true will not be passed
-		// to NovaExternalCompute
-		novaExternalCompute.Spec.Deploy = template.Deploy
-		novaExternalCompute.Spec.NetworkAttachments = aeeSpec.NetworkAttachments
-		novaExternalCompute.Spec.AnsibleEEContainerImage = aeeSpec.OpenStackAnsibleEERunnerImage
-		novaExternalCompute.Spec.DNSConfig = aeeSpec.DNSConfig
+		_, err := controllerutil.CreateOrPatch(ctx, helper.GetClient(), novaExternalCompute, func() error {
+			if novaExternalCompute.ObjectMeta.Labels == nil {
+				novaExternalCompute.ObjectMeta.Labels = make(map[string]string)
+			}
+			log.Info(fmt.Sprintf("NovaExternalCompute: Adding label %s=%s", "openstackdataplanenode", nodeName))
+			novaExternalCompute.ObjectMeta.Labels["openstackdataplanenode"] = nodeName
 
-		err := controllerutil.SetControllerReference(owner, novaExternalCompute, helper.GetScheme())
+			// We need to call the default ctor to get the unspecified fields defaulted according to the CRD defaults
+			// as otherwise golang would default those field to the golang empty value instead.
+			novaExternalCompute.Spec = novav1beta1.NewNovaExternalComputeSpec(inventoryConfigMap, sshKeySecret)
+			novaExternalCompute.Spec.CellName = template.CellName
+			novaExternalCompute.Spec.NovaInstance = template.NovaInstance
+			novaExternalCompute.Spec.CustomServiceConfig = template.CustomServiceConfig
+			// NOTE(gibi): if DeployStrategy.Deploy is false but Nova.Deploy is true
+			// then we never reach this point, so the Deploy true will not be passed
+			// to NovaExternalCompute
+			novaExternalCompute.Spec.Deploy = template.Deploy
+			novaExternalCompute.Spec.NetworkAttachments = aeeSpec.NetworkAttachments
+			novaExternalCompute.Spec.AnsibleEEContainerImage = aeeSpec.OpenStackAnsibleEERunnerImage
+
+			err := controllerutil.SetControllerReference(owner, novaExternalCompute, helper.GetScheme())
+			if err != nil {
+				return err
+			}
+
+			return nil
+		})
 		if err != nil {
-			return err
+			util.LogErrorForObject(helper, err, fmt.Sprintf("Unable to CreateOrPatch NovaExternalCompute %s", novaExternalCompute.Name), novaExternalCompute)
+			return nil, err
 		}
-
-		return nil
-	})
-	if err != nil {
-		util.LogErrorForObject(helper, err, fmt.Sprintf("Unable to CreateOrPatch NovaExternalCompute %s", novaExternalCompute.Name), novaExternalCompute)
-		return nil, err
 	}
 
 	return novaExternalCompute, nil
@@ -95,19 +97,16 @@ func DeployNovaExternalCompute(
 // in the OpenStackDataPlaneNode if defined takes precedence over the NovaTemplate
 // in the OpenStackDataPlaneRole.
 func getNovaTemplate(
-	node *dataplanev1.OpenStackDataPlaneNode,
+	node string,
 	role *dataplanev1.OpenStackDataPlaneRole,
 ) (*dataplanev1.NovaTemplate, error) {
-	if node.Spec.Node.Nova == nil {
-		return role.Spec.NodeTemplate.Nova, nil
+	if v, ok := role.Spec.NodeTemplate.Nodes[node]; ok {
+		if v.Nova != nil {
+			return role.Spec.NodeTemplate.Nodes[node].Nova, nil
+		}
 	}
 
-	if node.Spec.Node.Nova != nil && role.Spec.NodeTemplate.Nova != nil {
-		return mergeNovaTemplates(
-			*node.Spec.Node.Nova, *role.Spec.NodeTemplate.Nova)
-	}
-
-	return node.Spec.Node.Nova, nil
+	return nil, fmt.Errorf("no Nova Template provided")
 }
 
 func mergeNovaTemplates(

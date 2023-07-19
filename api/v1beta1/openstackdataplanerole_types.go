@@ -18,9 +18,9 @@ package v1beta1
 
 import (
 	"fmt"
-	"reflect"
 
 	condition "github.com/openstack-k8s-operators/lib-common/modules/common/condition"
+	"github.com/openstack-k8s-operators/lib-common/modules/storage"
 	baremetalv1 "github.com/openstack-k8s-operators/openstack-baremetal-operator/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,14 +31,24 @@ type OpenStackDataPlaneRoleSpec struct {
 	// +kubebuilder:validation:Optional
 	// DataPlane name of OpenStackDataPlane for this role
 	DataPlane string `json:"dataPlane,omitempty"`
+	
+	// +kubebuilder:validation:Optional
+	// +operator-sdk:csv:customresourcedefinitions:type=spec,xDescriptors={"urn:alm:descriptor:io.kubernetes:Secret"}
+	// AnsibleSSHPrivateKeySecret Private SSH Key secret containing private SSH
+	// key for connecting to node. Must be of the form:
+	// Secret.data.ssh-privatekey: <base64 encoded private key contents>
+	// <https://kubernetes.io/docs/concepts/configuration/secret/#ssh-authentication-secrets>
+	AnsibleSSHPrivateKeySecret string `json:"ansibleSSHPrivateKeySecret,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	// BaremetalSetTemplate Template for BaremetalSet for the Role
 	BaremetalSetTemplate baremetalv1.OpenStackBaremetalSetSpec `json:"baremetalSetTemplate,omitempty"`
 
-	// +kubebuilder:validation:Optional
-	// NodeTemplate - node attributes specific to this roles
-	NodeTemplate map[string]NodeSection `json:"nodeTemplate,omitempty"`
+	// +kubebuilder:validation:Required
+	// NodeTemplate - node attributes specific to nodes defined by this resource. These
+	// attributes can be overriden at the individual node level, else take their defaults
+	// from valus in this section.
+	NodeTemplate NodeTemplate `json:"nodes"`
 
 	// +kubebuilder:validation:Optional
 	//
@@ -54,6 +64,11 @@ type OpenStackDataPlaneRoleSpec struct {
 	// DeployStrategy section to control how the node is deployed
 	DeployStrategy DeployStrategySection `json:"deployStrategy,omitempty"`
 
+	// +kubebuilder:validation:Optional
+	// NetworkConfig - Network configuration details. Contains os-net-config
+	// related properties.
+	NetworkConfig NetworkConfigSection `json:"networkConfig"`
+	
 	// +kubebuilder:validation:Optional
 	// NetworkAttachments is a list of NetworkAttachment resource names to pass to the ansibleee resource
 	// which allows to connect the ansibleee runner to the given network
@@ -120,10 +135,12 @@ func (instance *OpenStackDataPlaneRole) InitConditions() {
 	}
 
 	haveCephSecret := false
-	for _, extraMount := range instance.Spec.NodeTemplate.ExtraMounts {
-		if extraMount.ExtraVolType == "Ceph" {
-			haveCephSecret = true
-			break
+	for _, node := range instance.Spec.NodeTemplate.Nodes {
+		for _, extraMount := range node.ExtraMounts {
+			if extraMount.ExtraVolType == "Ceph" {
+				haveCephSecret = true
+				break
+			}
 		}
 	}
 
@@ -135,57 +152,21 @@ func (instance *OpenStackDataPlaneRole) InitConditions() {
 	instance.Status.Deployed = false
 }
 
-// Validate - validates the shared data between role and nodes
-func (instance OpenStackDataPlaneRole) Validate(nodes []OpenStackDataPlaneNode) error {
-	var errorMsgs []string
-	containsEmptyField := false
-	for _, field := range UniqueSpecFields {
-		if reflect.ValueOf(instance.Spec).FieldByName(field).IsZero() {
-			containsEmptyField = true
-			break
-		}
-	}
-
-	if !containsEmptyField {
-		for _, node := range nodes {
-			suffix := fmt.Sprintf("node: %s and role: %s", node.Name, instance.Name)
-			msgs := AssertUniquenessBetween(node.Spec, instance.Spec, suffix)
-			errorMsgs = append(errorMsgs, msgs...)
-		}
-	}
-
-	// Compare nodes when role fields are empty
-	if containsEmptyField {
-		nodeMap := make(map[string]OpenStackDataPlaneNode)
-
-		for _, node := range nodes {
-			for _, field := range UniqueSpecFields {
-				if len(nodeMap[field].Name) > 0 {
-					suffix := fmt.Sprintf("node: %s and node: %s", node.Name, nodeMap[field].Name)
-					msgs := AssertUniquenessBetween(node.Spec, nodeMap[field].Spec, suffix)
-					errorMsgs = append(errorMsgs, msgs...)
-				}
-				if len(nodeMap[field].Name) == 0 && !reflect.ValueOf(node.Spec).FieldByName(field).IsZero() {
-					nodeMap[field] = node
-				}
-			}
-		}
-	}
-
-	if len(errorMsgs) > 0 {
-		return fmt.Errorf("validation error(s): %s", errorMsgs)
-	}
-	return nil
-}
-
 // GetAnsibleEESpec - get the fields that will be passed to AEE
 func (instance OpenStackDataPlaneRole) GetAnsibleEESpec() AnsibleEESpec {
+	var extraMounts []storage.VolMounts 
+	for _, node := range instance.Spec.NodeTemplate.Nodes {
+		for _, extraMount := range node.ExtraMounts {
+			extraMounts = append(extraMounts, extraMount)
+			}
+		}
+	
 	return AnsibleEESpec{
 		NetworkAttachments: instance.Spec.NetworkAttachments,
 		AnsibleTags:        instance.Spec.DeployStrategy.AnsibleTags,
 		AnsibleLimit:       instance.Spec.DeployStrategy.AnsibleLimit,
 		AnsibleSkipTags:    instance.Spec.DeployStrategy.AnsibleSkipTags,
-		ExtraMounts:        instance.Spec.NodeTemplate.ExtraMounts,
+		ExtraMounts:        extraMounts,
 		Env:                instance.Spec.Env,
 	}
 }

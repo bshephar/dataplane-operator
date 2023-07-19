@@ -42,7 +42,6 @@ func Deploy(
 	ctx context.Context,
 	helper *helper.Helper,
 	obj client.Object,
-	nodes *dataplanev1.OpenStackDataPlaneNodeList,
 	sshKeySecret string,
 	inventoryConfigMap string,
 	status *dataplanev1.OpenStackDataPlaneStatus,
@@ -155,8 +154,8 @@ func Deploy(
 	var novaExternalComputes []*novav1beta1.NovaExternalCompute
 	var novaReadyConditionsTrue []*condition.Condition
 	var novaErrors []error
-	for _, node := range nodes.Items {
-		template, err := getNovaTemplate(&node, role)
+	for nodeName := range role.Spec.NodeTemplate.Nodes {
+		template, err := getNovaTemplate(nodeName, role)
 		if err != nil {
 			log.Error(err, "Failed to get merged NovaTemplate")
 			novaErrors = append(novaErrors, err)
@@ -166,15 +165,15 @@ func Deploy(
 			// If the Nova template is not defined neither in the Node nor in
 			// the Role then it means the Node is not a compute node. So skip
 			// NovaExternalCompute deployment.
-			log.Info("Skip creating NovaExternalCompute as the Node is not a compute", "node", node.Name)
+			log.Info("Skip creating NovaExternalCompute as the Node is not a compute", "node", nodeName)
 			continue
 		}
 
-		nodeConfigMapName := fmt.Sprintf("dataplanenode-%s", node.Name)
+		nodeConfigMapName := fmt.Sprintf("dataplanenode-%s", nodeName)
 		novaExternalCompute, err := DeployNovaExternalCompute(
 			ctx,
 			helper,
-			&node,
+			role,
 			obj,
 			sshKeySecret,
 			nodeConfigMapName,
@@ -188,7 +187,7 @@ func Deploy(
 		}
 		novaExternalComputes = append(novaExternalComputes, novaExternalCompute)
 		novaReadyCondition := novaExternalCompute.Status.Conditions.Get(condition.ReadyCondition)
-		log.Info("Nova Status", "NovaExternalCompute", node.Name, "IsReady", novaExternalCompute.IsReady())
+		log.Info("Nova Status", "NovaExternalCompute", nodeName, "IsReady", novaExternalCompute.IsReady())
 		if novaExternalCompute.IsReady() {
 			novaReadyConditionsTrue = append(novaReadyConditionsTrue, novaReadyCondition)
 
