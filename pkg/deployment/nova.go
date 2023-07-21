@@ -35,7 +35,7 @@ import (
 func DeployNovaExternalCompute(
 	ctx context.Context,
 	helper *helper.Helper,
-	role *dataplanev1.OpenStackDataPlaneRole,
+	role *dataplanev1.OpenStackDataPlaneNodeSet,
 	owner client.Object,
 	sshKeySecret string,
 	inventoryConfigMap string,
@@ -98,7 +98,7 @@ func DeployNovaExternalCompute(
 // in the OpenStackDataPlaneRole.
 func getNovaTemplate(
 	node string,
-	role *dataplanev1.OpenStackDataPlaneRole,
+	role *dataplanev1.OpenStackDataPlaneNodeSet,
 ) (*dataplanev1.NovaTemplate, error) {
 	if v, ok := role.Spec.NodeTemplate.Nodes[node]; ok {
 		if v.Nova != nil {

@@ -1,7 +1,7 @@
 
 ### Custom Resources
 
-* [OpenStackDataPlaneRole](#openstackdataplanerole)
+* [OpenStackDataPlaneNodeSet](#openstackdataplanenodeset)
 
 ### Sub Resources
 
@@ -11,8 +11,8 @@
 * [NodeSection](#nodesection)
 * [NodeTemplate](#nodetemplate)
 * [NovaTemplate](#novatemplate)
-* [OpenStackDataPlaneRoleList](#openstackdataplanerolelist)
-* [OpenStackDataPlaneRoleSpec](#openstackdataplanerolespec)
+* [OpenStackDataPlaneNodeSetList](#openstackdataplanenodesetlist)
+* [OpenStackDataPlaneNodeSetSpec](#openstackdataplanenodesetspec)
 
 #### AnsibleEESpec
 
@@ -83,7 +83,7 @@ NodeTemplate is a specification of the node attributes
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| nodeNames | Nodes - Map of Node Names and node specific data. Values here override defaults in the upper level section. | map[string][NodeSection](#nodesection) | true |
+| nodes | Nodes - Map of Node Names and node specific data. Values here override defaults in the upper level section. | map[string][NodeSection](#nodesection) | true |
 | hostName | HostName - node name | string | false |
 | networkAttachments | NetworkAttachments is a list of NetworkAttachment resource names to pass to the ansibleee resource which allows to connect the ansibleee runner to the given network | []string | false |
 | networkConfig | NetworkConfig - Network configuration details. Contains os-net-config related properties. | [NetworkConfigSection](#networkconfigsection) | false |
@@ -113,39 +113,39 @@ NovaTemplate specifies the parameters for the compute service deployment on the 
 
 [Back to Custom Resources](#custom-resources)
 
-#### OpenStackDataPlaneRole
+#### OpenStackDataPlaneNodeSet
 
-OpenStackDataPlaneRole is the Schema for the openstackdataplaneroles API
+OpenStackDataPlaneNodeSet is the Schema for the openstackdataplanenodesets API
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
 | metadata |  | metav1.ObjectMeta | false |
-| spec |  | [OpenStackDataPlaneRoleSpec](#openstackdataplanerolespec) | false |
+| spec |  | [OpenStackDataPlaneNodeSetSpec](#openstackdataplanenodesetspec) | false |
 | status |  | OpenStackDataPlaneStatus | false |
 
 [Back to Custom Resources](#custom-resources)
 
-#### OpenStackDataPlaneRoleList
+#### OpenStackDataPlaneNodeSetList
 
-OpenStackDataPlaneRoleList contains a list of OpenStackDataPlaneRole
+OpenStackDataPlaneNodeSetList contains a list of OpenStackDataPlaneNodeSets
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
 | metadata |  | metav1.ListMeta | false |
-| items |  | [][OpenStackDataPlaneRole](#openstackdataplanerole) | true |
+| items |  | [][OpenStackDataPlaneNodeSet](#openstackdataplanenodeset) | true |
 
 [Back to Custom Resources](#custom-resources)
 
-#### OpenStackDataPlaneRoleSpec
+#### OpenStackDataPlaneNodeSetSpec
 
-OpenStackDataPlaneRoleSpec defines the desired state of OpenStackDataPlaneRole
+OpenStackDataPlaneNodeSetSpec defines the desired state of OpenStackDataPlaneNodeSet
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
 | dataPlane | DataPlane name of OpenStackDataPlane for this role | string | false |
 | ansibleSSHPrivateKeySecret | AnsibleSSHPrivateKeySecret Private SSH Key secret containing private SSH key for connecting to node. Must be of the form: Secret.data.ssh-privatekey: <base64 encoded private key contents> <https://kubernetes.io/docs/concepts/configuration/secret/#ssh-authentication-secrets> | string | false |
 | baremetalSetTemplate | BaremetalSetTemplate Template for BaremetalSet for the Role | baremetalv1.OpenStackBaremetalSetSpec | false |
-| nodes | NodeTemplate - node attributes specific to nodes defined by this resource. These attributes can be overriden at the individual node level, else take their defaults from valus in this section. | [NodeTemplate](#nodetemplate) | true |
+| nodeTemplate | NodeTemplate - node attributes specific to nodes defined by this resource. These attributes can be overriden at the individual node level, else take their defaults from valus in this section. | [NodeTemplate](#nodetemplate) | true |
 | preProvisioned | \n\nPreProvisioned - Whether the nodes are actually pre-provisioned (True) or should be preprovisioned (False) | bool | false |
 | env | Env is a list containing the environment variables to pass to the pod | []corev1.EnvVar | false |
 | deployStrategy | DeployStrategy section to control how the node is deployed | [DeployStrategySection](#deploystrategysection) | false |

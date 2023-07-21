@@ -36,7 +36,7 @@ import (
 
 // GenerateRoleInventory yields a parsed Inventory for role
 func GenerateRoleInventory(ctx context.Context, helper *helper.Helper,
-	instance *dataplanev1.OpenStackDataPlaneRole,
+	instance *dataplanev1.OpenStackDataPlaneNodeSet,
 	allIPSets map[string]infranetworkv1.IPSet, dnsAddresses []string) (string, error) {
 	var err error
 	var configMaps []string
@@ -194,7 +194,7 @@ func pupulateInventoryFromIPAM(
 }
 
 // getAnsibleUser returns the string value from the template unless it is set in the node
-func getAnsibleUser(instance *dataplanev1.OpenStackDataPlaneRole, nodeName string) string {
+func getAnsibleUser(instance *dataplanev1.OpenStackDataPlaneNodeSet, nodeName string) string {
 	if instance.Spec.NodeTemplate.Nodes[nodeName].AnsibleUser != "" {
 		return instance.Spec.NodeTemplate.Nodes[nodeName].AnsibleUser
 	}
@@ -202,7 +202,7 @@ func getAnsibleUser(instance *dataplanev1.OpenStackDataPlaneRole, nodeName strin
 }
 
 // getAnsiblePort returns the string value from the template unless it is set in the node
-func getAnsiblePort(instance *dataplanev1.OpenStackDataPlaneRole, nodeName string) string {
+func getAnsiblePort(instance *dataplanev1.OpenStackDataPlaneNodeSet, nodeName string) string {
 	if instance.Spec.NodeTemplate.Nodes[nodeName].AnsiblePort > 0 {
 		return strconv.Itoa(instance.Spec.NodeTemplate.Nodes[nodeName].AnsiblePort)
 	}
@@ -211,7 +211,7 @@ func getAnsiblePort(instance *dataplanev1.OpenStackDataPlaneRole, nodeName strin
 
 // getAnsibleManagementNetwork returns the string value from the template unless it is set in the node
 func getAnsibleManagementNetwork(
-	instance *dataplanev1.OpenStackDataPlaneRole,
+	instance *dataplanev1.OpenStackDataPlaneNodeSet,
 	nodeName string) string {
 	if instance.Spec.NodeTemplate.Nodes[nodeName].ManagementNetwork != "" {
 		return instance.Spec.NodeTemplate.Nodes[nodeName].ManagementNetwork
@@ -220,7 +220,7 @@ func getAnsibleManagementNetwork(
 }
 
 // getAnsibleNetworkConfig returns a JSON string value from the template unless it is set in the node
-func getAnsibleNetworkConfig(instance *dataplanev1.OpenStackDataPlaneRole, nodeName string) dataplanev1.NetworkConfigSection {
+func getAnsibleNetworkConfig(instance *dataplanev1.OpenStackDataPlaneNodeSet, nodeName string) dataplanev1.NetworkConfigSection {
 	if instance.Spec.NodeTemplate.Nodes[nodeName].NetworkConfig.Template != "" {
 		return instance.Spec.NodeTemplate.Nodes[nodeName].NetworkConfig
 	}
@@ -228,7 +228,7 @@ func getAnsibleNetworkConfig(instance *dataplanev1.OpenStackDataPlaneRole, nodeN
 }
 
 // getAnsibleNetworks returns a JSON string mapping fixedIP and/or network name to their valules
-func getAnsibleNetworks(instance *dataplanev1.OpenStackDataPlaneRole, nodeName string) []infranetworkv1.IPSetNetwork {
+func getAnsibleNetworks(instance *dataplanev1.OpenStackDataPlaneNodeSet, nodeName string) []infranetworkv1.IPSetNetwork {
 	if len(instance.Spec.NodeTemplate.Nodes[nodeName].Networks) > 0 {
 		return instance.Spec.NodeTemplate.Nodes[nodeName].Networks
 	}
@@ -237,7 +237,7 @@ func getAnsibleNetworks(instance *dataplanev1.OpenStackDataPlaneRole, nodeName s
 
 // getAnsibleVars returns ansible vars for a node
 func getAnsibleVars(
-	helper *helper.Helper, instance *dataplanev1.OpenStackDataPlaneRole, nodeName string) (map[string]interface{}, error) {
+	helper *helper.Helper, instance *dataplanev1.OpenStackDataPlaneNodeSet, nodeName string) (map[string]interface{}, error) {
 	// Merge the ansibleVars from the role into the value set on the node.
 	// Top level keys set on the node ansibleVars should override top level keys from the role AnsibleVars.
 	// However, there is no "deep" merge of values. Only top level keys are comvar matchFirstCap = regexp.MustCompile("(.)([A-Z][a-z]+)")

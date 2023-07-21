@@ -31,21 +31,21 @@ func CreateDataplaneNoNodes(name types.NamespacedName) *dataplanev1.OpenStackDat
 	return instance
 }
 
-func DefaultDataplaneRoleNoNodesTemplate(name types.NamespacedName) *dataplanev1.OpenStackDataPlaneRole {
-	return &dataplanev1.OpenStackDataPlaneRole{
+func DefaultDataplaneRoleNoNodesTemplate(name types.NamespacedName) *dataplanev1.OpenStackDataPlaneNodeSet {
+	return &dataplanev1.OpenStackDataPlaneNodeSet{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "dataplane.openstack.org/v1beta1",
-			Kind:       "OpenStackDataPlaneRole",
+			Kind:       "OpenStackDataPlaneNodeSet",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "edpm-compute-no-nodes",
 			Namespace: name.Namespace,
 		},
-		Spec: dataplanev1.OpenStackDataPlaneRoleSpec{},
+		Spec: dataplanev1.OpenStackDataPlaneNodeSetSpec{},
 	}
 }
 
-func CreateDataplaneRoleNoNodes(name types.NamespacedName) *dataplanev1.OpenStackDataPlaneRole {
+func CreateDataplaneRoleNoNodes(name types.NamespacedName) *dataplanev1.OpenStackDataPlaneNodeSet {
 	instance := DefaultDataplaneRoleNoNodesTemplate(name)
 	err := k8sClient.Create(ctx, instance)
 	Expect(err).NotTo(HaveOccurred())
@@ -58,7 +58,7 @@ func DefaultDataPlaneSpec() dataplanev1.OpenStackDataPlaneSpec {
 		DeployStrategy: dataplanev1.DeployStrategySection{
 			AnsibleTags: "",
 		},
-		Roles: map[string]dataplanev1.OpenStackDataPlaneRoleSpec{
+		NodeSet: map[string]dataplanev1.OpenStackDataPlaneNodeSetSpec{
 			"edpm-compute-no-nodes": {
 				Services: []string{"configure-network", "validate-network", "install-os", "configure-os", "run-os"},
 				NodeTemplate: dataplanev1.NodeTemplate{
@@ -100,8 +100,8 @@ func GetDataplane(name types.NamespacedName) *dataplanev1.OpenStackDataPlane {
 	return instance
 }
 
-func GetDataplaneRole(name types.NamespacedName) *dataplanev1.OpenStackDataPlaneRole {
-	instance := &dataplanev1.OpenStackDataPlaneRole{}
+func GetDataplaneRole(name types.NamespacedName) *dataplanev1.OpenStackDataPlaneNodeSet {
+	instance := &dataplanev1.OpenStackDataPlaneNodeSet{}
 	gomega.Eventually(func(g gomega.Gomega) error {
 		g.Expect(k8sClient.Get(ctx, name, instance)).Should(Succeed())
 		return nil

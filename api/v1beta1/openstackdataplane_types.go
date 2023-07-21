@@ -28,8 +28,8 @@ import (
 type OpenStackDataPlaneSpec struct {
 
 	// +kubebuilder:validation:Optional
-	// Roles - Map of roles
-	Roles map[string]OpenStackDataPlaneRoleSpec `json:"roles,omitempty"`
+	// NodeSet - Map of NodeSets
+	NodeSet map[string]OpenStackDataPlaneNodeSetSpec `json:"roles,omitempty"`
 	// +kubebuilder:validation:Optional
 	// DeployStrategy section to control how the node is deployed
 	DeployStrategy DeployStrategySection `json:"deployStrategy,omitempty"`

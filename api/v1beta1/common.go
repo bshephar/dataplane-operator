@@ -102,7 +102,7 @@ type NodeTemplate struct {
 	// +kubebuilder:validation:Required
 	// Nodes - Map of Node Names and node specific data. Values here override defaults in the
 	// upper level section.
-	Nodes map[string]NodeSection `json:"nodeNames"`
+	Nodes map[string]NodeSection `json:"nodes"`
 
 	// +kubebuilder:validation:Optional
 	// HostName - node name

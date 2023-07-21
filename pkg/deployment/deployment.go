@@ -47,7 +47,7 @@ func Deploy(
 	status *dataplanev1.OpenStackDataPlaneStatus,
 	aeeSpec dataplanev1.AnsibleEESpec,
 	services []string,
-	role *dataplanev1.OpenStackDataPlaneRole,
+	role *dataplanev1.OpenStackDataPlaneNodeSet,
 ) (*ctrl.Result, error) {
 
 	log := helper.GetLogger()

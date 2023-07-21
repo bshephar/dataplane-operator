@@ -53,8 +53,8 @@ const (
 	AnsibleSSHAuthorizedKeys = "authorized_keys"
 )
 
-// OpenStackDataPlaneRoleReconciler reconciles a OpenStackDataPlaneRole object
-type OpenStackDataPlaneRoleReconciler struct {
+// OpenStackDataPlaneNodeSetReconciler reconciles a OpenStackDataPlaneNodeSet object
+type OpenStackDataPlaneNodeSetReconciler struct {
 	client.Client
 	Kclient kubernetes.Interface
 	Scheme  *runtime.Scheme
@@ -88,19 +88,19 @@ type OpenStackDataPlaneRoleReconciler struct {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // TODO(user): Modify the Reconcile function to compare the state specified by
-// the OpenStackDataPlaneRole object against the actual cluster state, and then
+// the OpenStackDataPlaneNodeSet object against the actual cluster state, and then
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.2/pkg/reconcile
-func (r *OpenStackDataPlaneRoleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, _err error) {
+func (r *OpenStackDataPlaneNodeSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, _err error) {
 
 	logger := log.FromContext(ctx)
 	logger.Info("Reconciling Role")
 
-	// Fetch the OpenStackDataPlaneRole instance
-	instance := &dataplanev1.OpenStackDataPlaneRole{}
+	// Fetch the OpenStackDataPlaneNodeSet instance
+	instance := &dataplanev1.OpenStackDataPlaneNodeSet{}
 	err := r.Client.Get(ctx, req.NamespacedName, instance)
 	if err != nil {
 		if k8s_errors.IsNotFound(err) {
@@ -341,20 +341,20 @@ func (r *OpenStackDataPlaneRoleReconciler) Reconcile(ctx context.Context, req ct
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *OpenStackDataPlaneRoleReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *OpenStackDataPlaneNodeSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	reconcileFunction := handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
 		result := []reconcile.Request{}
 
 		// For each DNSMasq change event get the list of all
-		// OpenStackDataPlaneRole to trigger reconcile for the
+		// OpenStackDataPlaneNodeSet to trigger reconcile for the
 		// ones in the same namespace.
-		roles := &dataplanev1.OpenStackDataPlaneRoleList{}
+		roles := &dataplanev1.OpenStackDataPlaneNodeSetList{}
 
 		listOpts := []client.ListOption{
 			client.InNamespace(o.GetNamespace()),
 		}
 		if err := r.Client.List(context.Background(), roles, listOpts...); err != nil {
-			r.Log.Error(err, "Unable to retrieve OpenStackDataPlaneRoleList %w")
+			r.Log.Error(err, "Unable to retrieve OpenStackDataPlaneNodeSetList %w")
 			return nil
 		}
 
@@ -375,7 +375,7 @@ func (r *OpenStackDataPlaneRoleReconciler) SetupWithManager(mgr ctrl.Manager) er
 	})
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&dataplanev1.OpenStackDataPlaneRole{}).
+		For(&dataplanev1.OpenStackDataPlaneNodeSet{}).
 		Owns(&v1alpha1.OpenStackAnsibleEE{}).
 		Owns(&novav1beta1.NovaExternalCompute{}).
 		Owns(&baremetalv1.OpenStackBaremetalSet{}).

@@ -26,12 +26,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// OpenStackDataPlaneRoleSpec defines the desired state of OpenStackDataPlaneRole
-type OpenStackDataPlaneRoleSpec struct {
+// OpenStackDataPlaneNodeSetSpec defines the desired state of OpenStackDataPlaneNodeSet
+type OpenStackDataPlaneNodeSetSpec struct {
 	// +kubebuilder:validation:Optional
 	// DataPlane name of OpenStackDataPlane for this role
 	DataPlane string `json:"dataPlane,omitempty"`
-	
+
 	// +kubebuilder:validation:Optional
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,xDescriptors={"urn:alm:descriptor:io.kubernetes:Secret"}
 	// AnsibleSSHPrivateKeySecret Private SSH Key secret containing private SSH
@@ -48,7 +48,7 @@ type OpenStackDataPlaneRoleSpec struct {
 	// NodeTemplate - node attributes specific to nodes defined by this resource. These
 	// attributes can be overriden at the individual node level, else take their defaults
 	// from valus in this section.
-	NodeTemplate NodeTemplate `json:"nodes"`
+	NodeTemplate NodeTemplate `json:"nodeTemplate"`
 
 	// +kubebuilder:validation:Optional
 	//
@@ -68,7 +68,7 @@ type OpenStackDataPlaneRoleSpec struct {
 	// NetworkConfig - Network configuration details. Contains os-net-config
 	// related properties.
 	NetworkConfig NetworkConfigSection `json:"networkConfig"`
-	
+
 	// +kubebuilder:validation:Optional
 	// NetworkAttachments is a list of NetworkAttachment resource names to pass to the ansibleee resource
 	// which allows to connect the ansibleee runner to the given network
@@ -87,35 +87,35 @@ type OpenStackDataPlaneRoleSpec struct {
 //+kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.conditions[0].status",description="Status"
 //+kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[0].message",description="Message"
 
-// OpenStackDataPlaneRole is the Schema for the openstackdataplaneroles API
-type OpenStackDataPlaneRole struct {
+// OpenStackDataPlaneNodeSet is the Schema for the openstackdataplanenodesets API
+type OpenStackDataPlaneNodeSet struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   OpenStackDataPlaneRoleSpec `json:"spec,omitempty"`
-	Status OpenStackDataPlaneStatus   `json:"status,omitempty"`
+	Spec   OpenStackDataPlaneNodeSetSpec `json:"spec,omitempty"`
+	Status OpenStackDataPlaneStatus      `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// OpenStackDataPlaneRoleList contains a list of OpenStackDataPlaneRole
-type OpenStackDataPlaneRoleList struct {
+// OpenStackDataPlaneNodeSetList contains a list of OpenStackDataPlaneNodeSets
+type OpenStackDataPlaneNodeSetList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []OpenStackDataPlaneRole `json:"items"`
+	Items           []OpenStackDataPlaneNodeSet `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&OpenStackDataPlaneRole{}, &OpenStackDataPlaneRoleList{})
+	SchemeBuilder.Register(&OpenStackDataPlaneNodeSet{}, &OpenStackDataPlaneNodeSetList{})
 }
 
 // IsReady - returns true if the DataPlane is ready
-func (instance OpenStackDataPlaneRole) IsReady() bool {
+func (instance OpenStackDataPlaneNodeSet) IsReady() bool {
 	return instance.Status.Conditions.IsTrue(condition.DeploymentReadyCondition)
 }
 
 // InitConditions - Initializes Status Conditons
-func (instance *OpenStackDataPlaneRole) InitConditions() {
+func (instance *OpenStackDataPlaneNodeSet) InitConditions() {
 	instance.Status.Conditions = condition.Conditions{}
 
 	cl := condition.CreateList(
@@ -153,14 +153,14 @@ func (instance *OpenStackDataPlaneRole) InitConditions() {
 }
 
 // GetAnsibleEESpec - get the fields that will be passed to AEE
-func (instance OpenStackDataPlaneRole) GetAnsibleEESpec() AnsibleEESpec {
-	var extraMounts []storage.VolMounts 
+func (instance OpenStackDataPlaneNodeSet) GetAnsibleEESpec() AnsibleEESpec {
+	var extraMounts []storage.VolMounts
 	for _, node := range instance.Spec.NodeTemplate.Nodes {
 		for _, extraMount := range node.ExtraMounts {
 			extraMounts = append(extraMounts, extraMount)
-			}
 		}
-	
+	}
+
 	return AnsibleEESpec{
 		NetworkAttachments: instance.Spec.NetworkAttachments,
 		AnsibleTags:        instance.Spec.DeployStrategy.AnsibleTags,

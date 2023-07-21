@@ -33,7 +33,7 @@ import (
 
 // EnsureIPSets Creates the IPSets
 func EnsureIPSets(ctx context.Context, helper *helper.Helper,
-	instance *dataplanev1.OpenStackDataPlaneRole) (map[string]infranetworkv1.IPSet, bool, error) {
+	instance *dataplanev1.OpenStackDataPlaneNodeSet) (map[string]infranetworkv1.IPSet, bool, error) {
 	allIPSets, err := reserveIPs(ctx, helper, instance)
 	if err != nil {
 		instance.Status.Conditions.MarkFalse(
@@ -65,7 +65,7 @@ func EnsureIPSets(ctx context.Context, helper *helper.Helper,
 
 // createOrPatchDNSData builds the DNSData
 func createOrPatchDNSData(ctx context.Context, helper *helper.Helper,
-	instance *dataplanev1.OpenStackDataPlaneRole,
+	instance *dataplanev1.OpenStackDataPlaneNodeSet,
 	allIPSets map[string]infranetworkv1.IPSet) (string, error) {
 
 	var allDNSRecords []infranetworkv1.DNSHost
@@ -121,7 +121,7 @@ func createOrPatchDNSData(ctx context.Context, helper *helper.Helper,
 
 // EnsureDNSData Ensures DNSData is created
 func EnsureDNSData(ctx context.Context, helper *helper.Helper,
-	instance *dataplanev1.OpenStackDataPlaneRole,
+	instance *dataplanev1.OpenStackDataPlaneNodeSet,
 	allIPSets map[string]infranetworkv1.IPSet) ([]string, string, bool, error) {
 
 	// Verify dnsmasq CR exists
@@ -189,7 +189,7 @@ func EnsureDNSData(ctx context.Context, helper *helper.Helper,
 
 // reserveIPs Reserves IPs by creating IPSets
 func reserveIPs(ctx context.Context, helper *helper.Helper,
-	instance *dataplanev1.OpenStackDataPlaneRole) (map[string]infranetworkv1.IPSet, error) {
+	instance *dataplanev1.OpenStackDataPlaneNodeSet) (map[string]infranetworkv1.IPSet, error) {
 
 	// Verify NetConfig CRs exist
 	netConfigList := &infranetworkv1.NetConfigList{}

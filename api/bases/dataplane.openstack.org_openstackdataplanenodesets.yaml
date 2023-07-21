@@ -5,17 +5,17 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.10.0
   creationTimestamp: null
-  name: openstackdataplaneroles.dataplane.openstack.org
+  name: openstackdataplanenodesets.dataplane.openstack.org
 spec:
   group: dataplane.openstack.org
   names:
-    kind: OpenStackDataPlaneRole
-    listKind: OpenStackDataPlaneRoleList
-    plural: openstackdataplaneroles
+    kind: OpenStackDataPlaneNodeSet
+    listKind: OpenStackDataPlaneNodeSetList
+    plural: openstackdataplanenodesets
     shortNames:
     - osdprole
     - osdproles
-    singular: openstackdataplanerole
+    singular: openstackdataplanenodeset
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
@@ -281,7 +281,7 @@ spec:
                   template:
                     type: string
                 type: object
-              nodes:
+              nodeTemplate:
                 properties:
                   ansiblePort:
                     type: integer
@@ -1075,7 +1075,7 @@ spec:
                       - subnetName
                       type: object
                     type: array
-                  nodeNames:
+                  nodes:
                     additionalProperties:
                       properties:
                         ansibleHost:
@@ -1919,7 +1919,7 @@ spec:
                     type: object
                     x-kubernetes-map-type: atomic
                 required:
-                - nodeNames
+                - nodes
                 type: object
               preProvisioned:
                 type: boolean
@@ -1934,7 +1934,7 @@ spec:
                   type: string
                 type: array
             required:
-            - nodes
+            - nodeTemplate
             type: object
           status:
             properties:

@@ -84,7 +84,7 @@ NodeTemplate is a specification of the node attributes
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| nodeNames | Nodes - Map of Node Names and node specific data. Values here override defaults in the upper level section. | map[string][NodeSection](#nodesection) | true |
+| nodes | Nodes - Map of Node Names and node specific data. Values here override defaults in the upper level section. | map[string][NodeSection](#nodesection) | true |
 | hostName | HostName - node name | string | false |
 | networkAttachments | NetworkAttachments is a list of NetworkAttachment resource names to pass to the ansibleee resource which allows to connect the ansibleee runner to the given network | []string | false |
 | networkConfig | NetworkConfig - Network configuration details. Contains os-net-config related properties. | [NetworkConfigSection](#networkconfigsection) | false |
@@ -143,7 +143,7 @@ OpenStackDataPlaneSpec defines the desired state of OpenStackDataPlane
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| roles | Roles - Map of roles | map[string]OpenStackDataPlaneRoleSpec | false |
+| roles | NodeSet - Map of NodeSets | map[string]OpenStackDataPlaneNodeSetSpec | false |
 | deployStrategy | DeployStrategy section to control how the node is deployed | [DeployStrategySection](#deploystrategysection) | false |
 
 [Back to Custom Resources](#custom-resources)

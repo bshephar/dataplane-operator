@@ -33,7 +33,7 @@ import (
 
 // DeployBaremetalSet Deploy OpenStackBaremetalSet
 func DeployBaremetalSet(
-	ctx context.Context, helper *helper.Helper, instance *dataplanev1.OpenStackDataPlaneRole,
+	ctx context.Context, helper *helper.Helper, instance *dataplanev1.OpenStackDataPlaneNodeSet,
 	ipSets map[string]infranetworkv1.IPSet,
 	dnsAddresses []string,
 ) (bool, error) {
@@ -101,7 +101,7 @@ func DeployBaremetalSet(
 
 // BuildBMHHostMap  Build managed host map for all roles
 func BuildBMHHostMap(ctx context.Context, helper *helper.Helper,
-	instance *dataplanev1.OpenStackDataPlaneRole,
+	instance *dataplanev1.OpenStackDataPlaneNodeSet,
 	roleManagedHostMap map[string]map[string]baremetalv1.InstanceSpec) error {
 	for _, node := range instance.Spec.NodeTemplate.Nodes {
 		labels := instance.GetObjectMeta().GetLabels()
