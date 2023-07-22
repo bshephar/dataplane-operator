@@ -39,6 +39,7 @@ func GenerateRoleInventory(ctx context.Context, helper *helper.Helper,
 	instance *dataplanev1.OpenStackDataPlaneRole,
 	allIPSets map[string]infranetworkv1.IPSet, dnsAddresses []string) (string, error) {
 	var err error
+	var configMaps []string
 
 	inventory := ansible.MakeInventory()
 	roleNameGroup := inventory.AddGroup(instance.Name)
@@ -47,7 +48,11 @@ func GenerateRoleInventory(ctx context.Context, helper *helper.Helper,
 		return "", err
 	}
 
+	configMaps = append(configMaps, fmt.Sprintf("dataplanerole-%s", instance.Name))
 	for nodeName, node := range instance.Spec.NodeTemplate.Nodes {
+		// Add the node name to the list of configMaps required.
+		// This is required for compatibility with NovaExternalCompute.
+		configMaps = append(configMaps, fmt.Sprintf("dataplanenode-%s", nodeName))
 		host := roleNameGroup.AddHost(nodeName)
 		var dnsSearchDomains []string
 
@@ -130,19 +135,23 @@ func GenerateRoleInventory(ctx context.Context, helper *helper.Helper,
 		"inventory": string(invData),
 		"network":   string(instance.Spec.NodeTemplate.NetworkConfig.Template),
 	}
-	configMapName := fmt.Sprintf("dataplanerole-%s", instance.Name)
-	cms := []utils.Template{
-		// ConfigMap
-		{
-			Name:         configMapName,
-			Namespace:    instance.Namespace,
-			Type:         utils.TemplateTypeNone,
-			InstanceType: instance.Kind,
-			CustomData:   cmData,
-			Labels:       instance.ObjectMeta.Labels,
-		},
+
+	var configMapName string
+	for _, configMapName = range configMaps {
+		cms := []utils.Template{
+			// ConfigMap
+			{
+				Name:         configMapName,
+				Namespace:    instance.Namespace,
+				Type:         utils.TemplateTypeNone,
+				InstanceType: instance.Kind,
+				CustomData:   cmData,
+				Labels:       instance.ObjectMeta.Labels,
+			},
+		}
+		err = configmap.EnsureConfigMaps(ctx, helper, instance, cms, nil)
 	}
-	err = configmap.EnsureConfigMaps(ctx, helper, instance, cms, nil)
+
 	return configMapName, err
 }
 
