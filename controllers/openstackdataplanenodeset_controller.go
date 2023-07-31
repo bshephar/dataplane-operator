@@ -61,9 +61,9 @@ type OpenStackDataPlaneNodeSetReconciler struct {
 	Log     logr.Logger
 }
 
-//+kubebuilder:rbac:groups=dataplane.openstack.org,resources=openstackdataplaneroles,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=dataplane.openstack.org,resources=openstackdataplaneroles/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=dataplane.openstack.org,resources=openstackdataplaneroles/finalizers,verbs=update
+//+kubebuilder:rbac:groups=dataplane.openstack.org,resources=openstackdataplanenodesets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=dataplane.openstack.org,resources=openstackdataplanenodesets/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=dataplane.openstack.org,resources=openstackdataplanenodesets/finalizers,verbs=update
 //+kubebuilder:rbac:groups=dataplane.openstack.org,resources=openstackdataplaneservices,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=dataplane.openstack.org,resources=openstackdataplaneservices/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=dataplane.openstack.org,resources=openstackdataplaneservices/finalizers,verbs=update
@@ -230,6 +230,11 @@ func (r *OpenStackDataPlaneNodeSetReconciler) Reconcile(ctx context.Context, req
 
 	// Reconcile BaremetalSet if required
 	if len(instance.Spec.BaremetalSetTemplate.BaremetalHosts) > 0 {
+		nodeSetManagedHostMap := make(map[string]map[string]baremetalv1.InstanceSpec)
+		err = deployment.BuildBMHHostMap(ctx, helper, instance, nodeSetManagedHostMap)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
 		// Reset the NodeSetBareMetalProvisionReadyCondition to unknown
 		instance.Status.Conditions.MarkUnknown(dataplanev1.NodeSetBareMetalProvisionReadyCondition,
 			condition.InitReason, condition.InitReason)
@@ -341,18 +346,18 @@ func (r *OpenStackDataPlaneNodeSetReconciler) SetupWithManager(mgr ctrl.Manager)
 		// For each DNSMasq change event get the list of all
 		// OpenStackDataPlaneNodeSet to trigger reconcile for the
 		// ones in the same namespace.
-		roles := &dataplanev1.OpenStackDataPlaneNodeSetList{}
+		nodeSets := &dataplanev1.OpenStackDataPlaneNodeSetList{}
 
 		listOpts := []client.ListOption{
 			client.InNamespace(o.GetNamespace()),
 		}
-		if err := r.Client.List(context.Background(), roles, listOpts...); err != nil {
+		if err := r.Client.List(context.Background(), nodeSets, listOpts...); err != nil {
 			r.Log.Error(err, "Unable to retrieve OpenStackDataPlaneNodeSetList %w")
 			return nil
 		}
 
 		// For each role instance create a reconcile request
-		for _, i := range roles.Items {
+		for _, i := range nodeSets.Items {
 			name := client.ObjectKey{
 				Namespace: o.GetNamespace(),
 				Name:      i.Name,

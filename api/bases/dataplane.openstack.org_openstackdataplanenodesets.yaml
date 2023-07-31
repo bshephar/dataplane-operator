@@ -1034,8 +1034,6 @@ spec:
                       - volumes
                       type: object
                     type: array
-                  hostName:
-                    type: string
                   managementNetwork:
                     type: string
                   networkAttachments:

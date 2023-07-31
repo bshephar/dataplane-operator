@@ -102,7 +102,7 @@ func DeployBaremetalSet(
 // BuildBMHHostMap  Build managed host map for all roles
 func BuildBMHHostMap(ctx context.Context, helper *helper.Helper,
 	instance *dataplanev1.OpenStackDataPlaneNodeSet,
-	roleManagedHostMap map[string]map[string]baremetalv1.InstanceSpec) error {
+	nodeSetManagedHostMap map[string]map[string]baremetalv1.InstanceSpec) error {
 	for _, node := range instance.Spec.NodeTemplate.Nodes {
 		labels := instance.GetObjectMeta().GetLabels()
 		roleName, ok := labels["openstackdataplanerole"]
@@ -110,15 +110,15 @@ func BuildBMHHostMap(ctx context.Context, helper *helper.Helper,
 			// Node does not have a label
 			continue
 		}
-		if roleManagedHostMap[roleName] == nil {
-			roleManagedHostMap[roleName] = make(map[string]baremetalv1.InstanceSpec)
+		if nodeSetManagedHostMap[roleName] == nil {
+			nodeSetManagedHostMap[roleName] = make(map[string]baremetalv1.InstanceSpec)
 		}
 
 		if !instance.Spec.PreProvisioned {
 			instanceSpec := baremetalv1.InstanceSpec{}
 			instanceSpec.UserData = node.UserData
 			instanceSpec.NetworkData = node.NetworkData
-			roleManagedHostMap[roleName][node.HostName] = instanceSpec
+			nodeSetManagedHostMap[roleName][node.HostName] = instanceSpec
 
 		}
 	}

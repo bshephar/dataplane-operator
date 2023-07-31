@@ -61,7 +61,7 @@ type DataPlaneAnnotations struct {
 const edpmDeployAnnotationName string = "edpm.openstack.org/deploy"
 
 //+kubebuilder:rbac:groups=dataplane.openstack.org,resources=openstackdataplanes,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=dataplane.openstack.org,resources=openstackdataplanenodes;openstackdataplaneroles,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=dataplane.openstack.org,resources=openstackdataplanenodesets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=dataplane.openstack.org,resources=openstackdataplanes/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=dataplane.openstack.org,resources=openstackdataplanes/finalizers,verbs=update
 //+kubebuilder:rbac:groups=dataplane.openstack.org,resources=openstackdataplaneservices,verbs=get;list;watch
@@ -198,6 +198,7 @@ func (r *OpenStackDataPlaneReconciler) Reconcile(ctx context.Context, req ctrl.R
 					deployErrors = append(deployErrors, "nodeSet.Name: "+nodeSet.Name+" error updating labels: "+err.Error())
 				}
 			}
+
 			if !nodeSetFound {
 				err = fmt.Errorf("nodeSet %s: nodeSet.DataPlane does not match with nodeSet.Label", nodeSet.Name)
 				deployErrors = append(deployErrors, "nodeSet.Name: "+nodeSet.Name+" error: "+err.Error())

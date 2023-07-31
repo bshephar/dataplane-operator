@@ -107,10 +107,6 @@ type NodeTemplate struct {
 	Nodes map[string]NodeSection `json:"nodes"`
 
 	// +kubebuilder:validation:Optional
-	// HostName - node name
-	HostName string `json:"hostName,omitempty"`
-
-	// +kubebuilder:validation:Optional
 	// NetworkAttachments is a list of NetworkAttachment resource names to pass to the ansibleee resource
 	// which allows to connect the ansibleee runner to the given network
 	NetworkAttachments []string `json:"networkAttachments,omitempty"`
