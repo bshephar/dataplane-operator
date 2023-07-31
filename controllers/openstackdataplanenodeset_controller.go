@@ -97,7 +97,7 @@ type OpenStackDataPlaneNodeSetReconciler struct {
 func (r *OpenStackDataPlaneNodeSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, _err error) {
 
 	logger := log.FromContext(ctx)
-	logger.Info("Reconciling Role")
+	logger.Info("Reconciling NodeSet")
 
 	// Fetch the OpenStackDataPlaneNodeSet instance
 	instance := &dataplanev1.OpenStackDataPlaneNodeSet{}
@@ -129,7 +129,7 @@ func (r *OpenStackDataPlaneNodeSetReconciler) Reconcile(ctx context.Context, req
 	defer func() {
 		// update the overall status condition if service is ready
 		if instance.IsReady() {
-			instance.Status.Conditions.MarkTrue(condition.ReadyCondition, dataplanev1.DataPlaneRoleReadyMessage)
+			instance.Status.Conditions.MarkTrue(condition.ReadyCondition, dataplanev1.DataPlaneNodeSetReadyMessage)
 		} else {
 			// something is not ready so reset the Ready condition
 			instance.Status.Conditions.MarkUnknown(
@@ -174,18 +174,6 @@ func (r *OpenStackDataPlaneNodeSetReconciler) Reconcile(ctx context.Context, req
 	} else if instance.ObjectMeta.Labels != nil {
 		logger.Info(fmt.Sprintf("Removing label %s", "openstackdataplane"))
 		delete(instance.ObjectMeta.Labels, "openstackdataplane")
-	}
-
-	listOpts := []client.ListOption{
-		client.InNamespace(instance.GetNamespace()),
-	}
-	labelSelector := map[string]string{
-		"openstackdataplanerole": instance.Name,
-	}
-
-	if len(labelSelector) > 0 {
-		labels := client.MatchingLabels(labelSelector)
-		listOpts = append(listOpts, labels)
 	}
 
 	// Ensure IPSets Required for Nodes
@@ -242,8 +230,8 @@ func (r *OpenStackDataPlaneNodeSetReconciler) Reconcile(ctx context.Context, req
 
 	// Reconcile BaremetalSet if required
 	if len(instance.Spec.BaremetalSetTemplate.BaremetalHosts) > 0 {
-		// Reset the RoleBareMetalProvisionReadyCondition to unknown
-		instance.Status.Conditions.MarkUnknown(dataplanev1.RoleBareMetalProvisionReadyCondition,
+		// Reset the NodeSetBareMetalProvisionReadyCondition to unknown
+		instance.Status.Conditions.MarkUnknown(dataplanev1.NodeSetBareMetalProvisionReadyCondition,
 			condition.InitReason, condition.InitReason)
 		isReady, err := deployment.DeployBaremetalSet(ctx, helper, instance,
 			allIPSets, dnsAddresses)
@@ -251,11 +239,11 @@ func (r *OpenStackDataPlaneNodeSetReconciler) Reconcile(ctx context.Context, req
 			return ctrl.Result{}, err
 		}
 	} else {
-		instance.Status.Conditions.Remove(dataplanev1.RoleBareMetalProvisionReadyCondition)
+		instance.Status.Conditions.Remove(dataplanev1.NodeSetBareMetalProvisionReadyCondition)
 	}
 
-	// Generate Role Inventory
-	roleConfigMap, err := deployment.GenerateRoleInventory(ctx, helper, instance,
+	// Generate NodeSet Inventory
+	roleConfigMap, err := deployment.GenerateNodeSetInventory(ctx, helper, instance,
 		allIPSets, dnsAddresses)
 	if err != nil {
 		util.LogErrorForObject(helper, err, fmt.Sprintf("Unable to generate inventory for %s", instance.Name), instance)
@@ -263,7 +251,7 @@ func (r *OpenStackDataPlaneNodeSetReconciler) Reconcile(ctx context.Context, req
 	}
 
 	// Verify Ansible SSH Secret
-	ansibleSSHPrivateKeySecret = instance.Spec.AnsibleSSHPrivateKeySecret
+	ansibleSSHPrivateKeySecret = instance.Spec.NodeTemplate.AnsibleSSHPrivateKeySecret
 	if ansibleSSHPrivateKeySecret != "" {
 		_, result, err = secret.VerifySecret(
 			ctx,
@@ -282,9 +270,14 @@ func (r *OpenStackDataPlaneNodeSetReconciler) Reconcile(ctx context.Context, req
 	// all setup tasks complete, mark SetupReadyCondition True
 	instance.Status.Conditions.MarkTrue(dataplanev1.SetupReadyCondition, condition.ReadyMessage)
 
-	logger.Info("Role", "DeployStrategy", instance.Spec.DeployStrategy.Deploy,
-		"Role.Namespace", instance.Namespace, "Role.Name", instance.Name)
-	if instance.Spec.DeployStrategy.Deploy {
+	// The OpenStackDataPlane controller will annotate the nodeSet when it's ready to perform
+	// the executions. We need to check for the presense of this annotation.
+	_, deployAnnotation := instance.ObjectMeta.Annotations[edpmDeployAnnotationName]
+
+	// Trigger executions based on the OpenStackDataPlane Controller state.
+	r.Log.Info("NodeSet", "DeployStrategy", instance.Spec.DeployStrategy.Deploy,
+		"NodeSet.Namespace", instance.Namespace, "NodeSet.Name", instance.Name)
+	if instance.Spec.DeployStrategy.Deploy && deployAnnotation {
 		logger.Info("Deploying NodeSet: %s", instance.Name)
 		logger.Info("Starting DataPlaneNodeSet deploy")
 		logger.Info("Set DeploymentReadyCondition false", "instance", instance)
@@ -308,7 +301,7 @@ func (r *OpenStackDataPlaneNodeSetReconciler) Reconcile(ctx context.Context, req
 				condition.ReadyCondition,
 				condition.ErrorReason,
 				condition.SeverityWarning,
-				dataplanev1.DataPlaneRoleErrorMessage,
+				dataplanev1.DataPlaneNodeSetErrorMessage,
 				err.Error()))
 			return ctrl.Result{}, err
 		}
@@ -330,7 +323,7 @@ func (r *OpenStackDataPlaneNodeSetReconciler) Reconcile(ctx context.Context, req
 	}
 
 	// Set DeploymentReadyCondition to False if it was unknown.
-	// Handles the case where the Role is created with
+	// Handles the case where the NodeSet is created with
 	// DeployStrategy.Deploy=false.
 	if instance.Status.Conditions.IsUnknown(condition.DeploymentReadyCondition) {
 		logger.Info("Set DeploymentReadyCondition false")

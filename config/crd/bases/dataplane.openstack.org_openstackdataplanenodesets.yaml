@@ -13,8 +13,8 @@ spec:
     listKind: OpenStackDataPlaneNodeSetList
     plural: openstackdataplanenodesets
     shortNames:
-    - osdprole
-    - osdproles
+    - osdpnodeset
+    - osdpnodesets
     singular: openstackdataplanenodeset
   scope: Namespaced
   versions:
@@ -39,8 +39,6 @@ spec:
             type: object
           spec:
             properties:
-              ansibleSSHPrivateKeySecret:
-                type: string
               baremetalSetTemplate:
                 properties:
                   automatedCleaningMode:
@@ -1087,7 +1085,7 @@ spec:
                         ansibleUser:
                           type: string
                         ansibleVars:
-                          type: string
+                          x-kubernetes-preserve-unknown-fields: true
                         extraMounts:
                           items:
                             properties:

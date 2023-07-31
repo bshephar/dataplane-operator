@@ -47,7 +47,7 @@ func Deploy(
 	status *dataplanev1.OpenStackDataPlaneStatus,
 	aeeSpec dataplanev1.AnsibleEESpec,
 	services []string,
-	role *dataplanev1.OpenStackDataPlaneNodeSet,
+	nodeSet *dataplanev1.OpenStackDataPlaneNodeSet,
 ) (*ctrl.Result, error) {
 
 	log := helper.GetLogger()
@@ -96,7 +96,7 @@ func Deploy(
 		)
 		// Some OpenStackDataPlaneService might need Kubernetes Services to be created
 		if len(foundService.Spec.Services) > 0 {
-			errKube := CreateKubeServices(&foundService, nodes, helper, make(map[string]string))
+			errKube := CreateKubeServices(&foundService, nodeSet, helper, make(map[string]string))
 			if errKube != nil {
 				return &ctrl.Result{}, errKube
 			}
@@ -154,8 +154,8 @@ func Deploy(
 	var novaExternalComputes []*novav1beta1.NovaExternalCompute
 	var novaReadyConditionsTrue []*condition.Condition
 	var novaErrors []error
-	for nodeName := range role.Spec.NodeTemplate.Nodes {
-		template, err := getNovaTemplate(nodeName, role)
+	for nodeName := range nodeSet.Spec.NodeTemplate.Nodes {
+		template, err := getNovaTemplate(nodeName, nodeSet)
 		if err != nil {
 			log.Error(err, "Failed to get merged NovaTemplate")
 			novaErrors = append(novaErrors, err)
@@ -173,7 +173,7 @@ func Deploy(
 		novaExternalCompute, err := DeployNovaExternalCompute(
 			ctx,
 			helper,
-			role,
+			nodeSet,
 			obj,
 			sshKeySecret,
 			nodeConfigMapName,

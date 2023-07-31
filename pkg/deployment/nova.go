@@ -35,7 +35,7 @@ import (
 func DeployNovaExternalCompute(
 	ctx context.Context,
 	helper *helper.Helper,
-	role *dataplanev1.OpenStackDataPlaneNodeSet,
+	nodeSet *dataplanev1.OpenStackDataPlaneNodeSet,
 	owner client.Object,
 	sshKeySecret string,
 	inventoryConfigMap string,
@@ -46,13 +46,13 @@ func DeployNovaExternalCompute(
 	log := helper.GetLogger()
 
 	novaExternalCompute := &novav1beta1.NovaExternalCompute{}
-	for nodeName := range role.Spec.NodeTemplate.Nodes {
+	for nodeName := range nodeSet.Spec.NodeTemplate.Nodes {
 		log.Info("NovaExternalCompute deploy", "OpenStackControlPlaneNode", nodeName, "novaTemplate", template)
 
 		novaExternalCompute := &novav1beta1.NovaExternalCompute{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      nodeName,
-				Namespace: role.GetNamespace(),
+				Namespace: nodeSet.GetNamespace(),
 			},
 		}
 
@@ -93,16 +93,14 @@ func DeployNovaExternalCompute(
 
 }
 
-// getNovaTemplate returns the NovaTemplate instance to be used. The NovaTemplate
-// in the OpenStackDataPlaneNode if defined takes precedence over the NovaTemplate
-// in the OpenStackDataPlaneRole.
+// getNovaTemplate returns the NovaTemplate instance to be used.
 func getNovaTemplate(
 	node string,
-	role *dataplanev1.OpenStackDataPlaneNodeSet,
+	nodeSet *dataplanev1.OpenStackDataPlaneNodeSet,
 ) (*dataplanev1.NovaTemplate, error) {
-	if v, ok := role.Spec.NodeTemplate.Nodes[node]; ok {
+	if v, ok := nodeSet.Spec.NodeTemplate.Nodes[node]; ok {
 		if v.Nova != nil {
-			return role.Spec.NodeTemplate.Nodes[node].Nova, nil
+			return nodeSet.Spec.NodeTemplate.Nodes[node].Nova, nil
 		}
 	}
 

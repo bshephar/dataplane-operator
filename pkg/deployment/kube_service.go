@@ -30,7 +30,7 @@ import (
 // CreateKubeServices creates a service in Kubernetes for each compute node and each port
 func CreateKubeServices(
 	instance *dataplanev1.OpenStackDataPlaneService,
-	nodes *dataplanev1.OpenStackDataPlaneNodeList,
+	nodeSet *dataplanev1.OpenStackDataPlaneNodeSet,
 	helper *helper.Helper,
 	labels map[string]string,
 ) error {
@@ -38,18 +38,15 @@ func CreateKubeServices(
 	// just add all the compute nodes IPs to one service, the Service will round-robin between them.
 	// Our wanted behaviour is to expose all the compute nodes services at the same time.
 	for _, kubeService := range instance.Spec.Services {
-		for _, node := range nodes.Items {
-			_, err := service(kubeService, instance, &node, helper, labels)
-			if err != nil {
-				return err
-			}
-			_, err = endpointSlice(kubeService, instance, &node, helper, labels)
-			if err != nil {
-				return err
-			}
+		_, err := service(kubeService, instance, nodeSet, helper, labels)
+		if err != nil {
+			return err
+		}
+		_, err = endpointSlice(kubeService, instance, nodeSet, helper, labels)
+		if err != nil {
+			return err
 		}
 	}
-
 	return nil
 }
 
@@ -57,78 +54,87 @@ func CreateKubeServices(
 func service(
 	kubeService dataplanev1.KubeService,
 	instance *dataplanev1.OpenStackDataPlaneService,
-	node *dataplanev1.OpenStackDataPlaneNode,
+	nodes *dataplanev1.OpenStackDataPlaneNodeSet,
 	helper *helper.Helper,
 	labels map[string]string,
-) (*corev1.Service, error) {
+) ([]*corev1.Service, error) {
 
-	service := &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-%s", kubeService.Name, node.Spec.HostName),
-			Namespace: instance.Namespace,
-		},
-	}
-
-	_, err := controllerutil.CreateOrUpdate(context.TODO(), helper.GetClient(), service, func() error {
-		labels["kubernetes.io/service-name"] = fmt.Sprintf("%s-%s", kubeService.Name, node.Spec.HostName)
-		service.Labels = labels
-		service.Spec.Ports = []corev1.ServicePort{{
-			Protocol:   "TCP",
-			Port:       int32(kubeService.Port),
-			TargetPort: intstr.FromInt(kubeService.Port),
-		}}
-
-		err := controllerutil.SetControllerReference(instance, service, helper.GetScheme())
-		if err != nil {
-			return err
+	var err error
+	var services []*corev1.Service
+	for _, node := range nodes.Spec.NodeTemplate.Nodes {
+		service := &corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("%s-%s", kubeService.Name, node.HostName),
+				Namespace: instance.Namespace,
+			},
 		}
 
-		return nil
-	})
+		_, err = controllerutil.CreateOrUpdate(context.TODO(), helper.GetClient(), service, func() error {
+			labels["kubernetes.io/service-name"] = fmt.Sprintf("%s-%s", kubeService.Name, node.HostName)
+			service.Labels = labels
+			service.Spec.Ports = []corev1.ServicePort{{
+				Protocol:   "TCP",
+				Port:       int32(kubeService.Port),
+				TargetPort: intstr.FromInt(kubeService.Port),
+			}}
 
-	return service, err
+			err := controllerutil.SetControllerReference(instance, service, helper.GetScheme())
+			if err != nil {
+				return err
+			}
+
+			return nil
+		})
+		services = append(services, service)
+	}
+
+	return services, err
 }
 
 // endpointSlice creates endpointslice in Kubernetes for the appropiate port in the passed node
 func endpointSlice(
 	kubeService dataplanev1.KubeService,
 	instance *dataplanev1.OpenStackDataPlaneService,
-	node *dataplanev1.OpenStackDataPlaneNode,
+	node *dataplanev1.OpenStackDataPlaneNodeSet,
 	helper *helper.Helper,
 	labels map[string]string,
-) (*discoveryv1.EndpointSlice, error) {
-	endpointSlice := &discoveryv1.EndpointSlice{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-%s", kubeService.Name, node.Spec.HostName),
-			Namespace: instance.Namespace,
-		},
-	}
+) ([]*discoveryv1.EndpointSlice, error) {
 
-	_, err := controllerutil.CreateOrUpdate(context.TODO(), helper.GetClient(), endpointSlice, func() error {
-		labels["kubernetes.io/service-name"] = fmt.Sprintf("%s-%s", kubeService.Name, node.Spec.HostName)
-		endpointSlice.Labels = labels
-		endpointSlice.AddressType = "IPv4"
-		appProtocol := kubeService.Protocol
-		protocol := corev1.ProtocolTCP
-		port := int32(kubeService.Port)
-		endpointSlice.Ports = []discoveryv1.EndpointPort{{
-			AppProtocol: &appProtocol,
-			Protocol:    &protocol,
-			Port:        &port,
-		}}
-		endpointSlice.Endpoints = []discoveryv1.Endpoint{{
-			Addresses: []string{
-				node.Spec.AnsibleHost,
+	var err error
+	var endpointSlices []*discoveryv1.EndpointSlice
+	for _, node := range node.Spec.NodeTemplate.Nodes {
+		endpointSlice := &discoveryv1.EndpointSlice{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("%s-%s", kubeService.Name, node.HostName),
+				Namespace: instance.Namespace,
 			},
-		}}
-
-		err := controllerutil.SetControllerReference(instance, endpointSlice, helper.GetScheme())
-		if err != nil {
-			return err
 		}
 
-		return nil
-	})
+		_, err = controllerutil.CreateOrUpdate(context.TODO(), helper.GetClient(), endpointSlice, func() error {
+			labels["kubernetes.io/service-name"] = fmt.Sprintf("%s-%s", kubeService.Name, node.HostName)
+			endpointSlice.Labels = labels
+			endpointSlice.AddressType = "IPv4"
+			appProtocol := kubeService.Protocol
+			protocol := corev1.ProtocolTCP
+			port := int32(kubeService.Port)
+			endpointSlice.Ports = []discoveryv1.EndpointPort{{
+				AppProtocol: &appProtocol,
+				Protocol:    &protocol,
+				Port:        &port,
+			}}
+			endpointSlice.Endpoints = []discoveryv1.Endpoint{{
+				Addresses: []string{
+					node.AnsibleHost,
+				},
+			}}
 
-	return endpointSlice, err
+			err := controllerutil.SetControllerReference(instance, endpointSlice, helper.GetScheme())
+			if err != nil {
+				return err
+			}
+			return nil
+		})
+		endpointSlices = append(endpointSlices, endpointSlice)
+	}
+	return endpointSlices, err
 }

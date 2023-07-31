@@ -1,7 +1,7 @@
 
 ### Custom Resources
 
-* [OpenStackDataPlaneService](#openstackdataplaneservice)
+* [OpenStackDataPlaneNodeSet](#openstackdataplanenodeset)
 
 ### Sub Resources
 
@@ -11,10 +11,8 @@
 * [NodeSection](#nodesection)
 * [NodeTemplate](#nodetemplate)
 * [NovaTemplate](#novatemplate)
-* [KubeService](#kubeservice)
-* [OpenStackDataPlaneServiceList](#openstackdataplaneservicelist)
-* [OpenStackDataPlaneServiceSpec](#openstackdataplaneservicespec)
-* [OpenStackDataPlaneServiceStatus](#openstackdataplaneservicestatus)
+* [OpenStackDataPlaneNodeSetList](#openstackdataplanenodesetlist)
+* [OpenStackDataPlaneNodeSetSpec](#openstackdataplanenodesetspec)
 
 #### AnsibleEESpec
 
@@ -115,62 +113,43 @@ NovaTemplate specifies the parameters for the compute service deployment on the 
 
 [Back to Custom Resources](#custom-resources)
 
-#### KubeService
+#### OpenStackDataPlaneNodeSet
 
-KubeService represents a Kubernetes Service. It is called like this to avoid the extreme overloading of the Service term in this context
-
-| Field | Description | Scheme | Required |
-| ----- | ----------- | ------ | -------- |
-| name | Name of the Service will have in kubernetes | string | true |
-| port | Port is the port of the service | int | true |
-| protocol | Protocol is the protocol used to connect to the endpoint | string | false |
-
-[Back to Custom Resources](#custom-resources)
-
-#### OpenStackDataPlaneService
-
-OpenStackDataPlaneService is the Schema for the openstackdataplaneservices API
+OpenStackDataPlaneNodeSet is the Schema for the openstackdataplanenodesets API
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
 | metadata |  | metav1.ObjectMeta | false |
-| spec |  | [OpenStackDataPlaneServiceSpec](#openstackdataplaneservicespec) | false |
-| status |  | [OpenStackDataPlaneServiceStatus](#openstackdataplaneservicestatus) | false |
+| spec |  | [OpenStackDataPlaneNodeSetSpec](#openstackdataplanenodesetspec) | false |
+| status |  | OpenStackDataPlaneStatus | false |
 
 [Back to Custom Resources](#custom-resources)
 
-#### OpenStackDataPlaneServiceList
+#### OpenStackDataPlaneNodeSetList
 
-OpenStackDataPlaneServiceList contains a list of OpenStackDataPlaneService
+OpenStackDataPlaneNodeSetList contains a list of OpenStackDataPlaneNodeSets
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
 | metadata |  | metav1.ListMeta | false |
-| items |  | [][OpenStackDataPlaneService](#openstackdataplaneservice) | true |
+| items |  | [][OpenStackDataPlaneNodeSet](#openstackdataplanenodeset) | true |
 
 [Back to Custom Resources](#custom-resources)
 
-#### OpenStackDataPlaneServiceSpec
+#### OpenStackDataPlaneNodeSetSpec
 
-OpenStackDataPlaneServiceSpec defines the desired state of OpenStackDataPlaneService
-
-| Field | Description | Scheme | Required |
-| ----- | ----------- | ------ | -------- |
-| label | Label to use for service | string | false |
-| services | Services to create to expose possible external services in computes | [][KubeService](#kubeservice) | false |
-| play | Play is an inline playbook contents that ansible will run on execution. If both Play and Roles are specified, Play takes precedence | string | false |
-| playbook | Playbook is a path to the playbook that ansible will run on this execution | string | false |
-| role | Role is the description of an Ansible Role | *ansibleeev1.Role | false |
-| openStackAnsibleEERunnerImage | OpenStackAnsibleEERunnerImage image to use as the ansibleEE runner image | string | false |
-
-[Back to Custom Resources](#custom-resources)
-
-#### OpenStackDataPlaneServiceStatus
-
-OpenStackDataPlaneServiceStatus defines the observed state of OpenStackDataPlaneService
+OpenStackDataPlaneNodeSetSpec defines the desired state of OpenStackDataPlaneNodeSet
 
 | Field | Description | Scheme | Required |
 | ----- | ----------- | ------ | -------- |
-| conditions | Conditions | condition.Conditions | false |
+| dataPlane | DataPlane name of OpenStackDataPlane for this role | string | false |
+| baremetalSetTemplate | BaremetalSetTemplate Template for BaremetalSet for the NodeSet | baremetalv1.OpenStackBaremetalSetSpec | false |
+| nodeTemplate | NodeTemplate - node attributes specific to nodes defined by this resource. These attributes can be overriden at the individual node level, else take their defaults from valus in this section. | [NodeTemplate](#nodetemplate) | true |
+| preProvisioned | \n\nPreProvisioned - Whether the nodes are actually pre-provisioned (True) or should be preprovisioned (False) | bool | false |
+| env | Env is a list containing the environment variables to pass to the pod | []corev1.EnvVar | false |
+| deployStrategy | DeployStrategy section to control how the node is deployed | [DeployStrategySection](#deploystrategysection) | false |
+| networkConfig | NetworkConfig - Network configuration details. Contains os-net-config related properties. | [NetworkConfigSection](#networkconfigsection) | true |
+| networkAttachments | NetworkAttachments is a list of NetworkAttachment resource names to pass to the ansibleee resource which allows to connect the ansibleee runner to the given network | []string | false |
+| services | Services list | []string | true |
 
 [Back to Custom Resources](#custom-resources)

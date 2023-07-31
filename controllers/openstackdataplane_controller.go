@@ -27,8 +27,11 @@ import (
 	"github.com/openstack-k8s-operators/lib-common/modules/common/helper"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/util"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -41,6 +44,21 @@ type OpenStackDataPlaneReconciler struct {
 	Scheme  *runtime.Scheme
 	Log     logr.Logger
 }
+
+// DataPlaneAnnotations defines a struct that we can use to update annotations on Dataplane related
+// objects.
+type DataPlaneAnnotations struct {
+	// Name is just the string name used to reference the annotation
+	// this would typically serve as the key in the Annotations map
+	Name string
+
+	// Annotations represents the map of annotations that should be
+	// applied to the object.
+	Annotations map[string]string
+}
+
+// edpmDeployAnnotationName - This annotation name is used to trigger Ansible deployments against dataplane nodes.
+const edpmDeployAnnotationName string = "edpm.openstack.org/deploy"
 
 //+kubebuilder:rbac:groups=dataplane.openstack.org,resources=openstackdataplanes,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=dataplane.openstack.org,resources=openstackdataplanenodes;openstackdataplaneroles,verbs=get;list;watch;create;update;patch;delete
@@ -128,40 +146,82 @@ func (r *OpenStackDataPlaneReconciler) Reconcile(ctx context.Context, req ctrl.R
 		logger.Info("Starting DataPlane deploy")
 		logger.Info("Set DeploymentReadyCondition false", "instance", instance)
 		instance.Status.Conditions.Set(condition.FalseCondition(condition.DeploymentReadyCondition, condition.RequestedReason, condition.SeverityInfo, condition.DeploymentReadyRunningMessage))
-		roles := &dataplanev1.OpenStackDataPlaneNodeSetList{}
+		nodeSets := &dataplanev1.OpenStackDataPlaneNodeSetList{}
 
-		listOpts := []client.ListOption{
-			client.InNamespace(instance.GetNamespace()),
+		labelSelector := labels.NewSelector()
+		labelReq, err := labels.NewRequirement("openstackdataplane", selection.In, []string{instance.Name})
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to format labelSelector: %w", err)
 		}
-		labelSelector := map[string]string{
-			"openstackdataplane": instance.Name,
+		labelSelector.Add(*labelReq)
+
+		listOpts := client.ListOptions{
+			Namespace:     instance.GetNamespace(),
+			LabelSelector: labelSelector,
 		}
-		if len(labelSelector) > 0 {
-			labels := client.MatchingLabels(labelSelector)
-			listOpts = append(listOpts, labels)
-		}
-		err = r.Client.List(ctx, roles, listOpts...)
+
+		err = r.Client.List(ctx, nodeSets, &listOpts)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 
-		for _, role := range roles.Items {
-			logger.Info("DataPlane deploy", "role.Name", role.Name)
-			if role.Spec.DataPlane != instance.Name {
-				err = fmt.Errorf("role %s: role.DataPlane does not match with role.Label", role.Name)
-				deployErrors = append(deployErrors, "role.Name: "+role.Name+" error: "+err.Error())
+		// If we didn't find any nodeSets with the labelSelector, we wont be able to deploy anything. Let's Log
+		// this and requeue.
+		if len(nodeSets.Items) == 0 {
+			logger.Info(fmt.Sprintf("No nodeSets were found with matching label: %v", labelSelector))
+			return ctrl.Result{RequeueAfter: time.Second * 5}, nil
+		}
+
+		// Setup the deployAnnotation that will be applied to each NodeSet as a deployment trigger
+		edpmDeployAnnotation := DataPlaneAnnotations{
+			Name: edpmDeployAnnotationName,
+			Annotations: map[string]string{
+				edpmDeployAnnotationName: "true",
+			},
+		}
+
+		for _, nodeSet := range nodeSets.Items {
+			logger.Info("DataPlane deploy", "nodeSet.Name", nodeSet.Name)
+			// We don't expect that our nodeSet list will be overly large. As such, linear search is likely
+			// to be computationally more efficient compared to importing and using slices.Contains() here.
+			nodeSetFound := false
+			for _, nodeSetName := range instance.Spec.NodeSets {
+				if nodeSetName == nodeSet.Name {
+					nodeSetFound = true
+				}
 			}
-			if !role.IsReady() {
-				logger.Info("Role", "IsReady", role.IsReady(), "Role.Namespace", instance.Namespace, "Role.Name", role.Name)
+			// If the specified nodeSet is found. Then we need to annotate the nodeSet object to trigger
+			// the Ansible deployment. This should only be triggered when deployStrategy.deploy = true
+			if nodeSetFound {
+				err := edpmDeployAnnotation.updateNodeSetAnnotations(ctx, helper, &nodeSet)
+				if err != nil {
+					deployErrors = append(deployErrors, "nodeSet.Name: "+nodeSet.Name+" error updating labels: "+err.Error())
+				}
+			}
+			if !nodeSetFound {
+				err = fmt.Errorf("nodeSet %s: nodeSet.DataPlane does not match with nodeSet.Label", nodeSet.Name)
+				deployErrors = append(deployErrors, "nodeSet.Name: "+nodeSet.Name+" error: "+err.Error())
+			}
+
+			if !nodeSet.IsReady() {
+				logger.Info("NodeSet", "IsReady", nodeSet.IsReady(), "NodeSet.Namespace", instance.Namespace, "NodeSet.Name", nodeSet.Name)
 				shouldRequeue = true
-				mirroredCondition := role.Status.Conditions.Mirror(condition.ReadyCondition)
+				mirroredCondition := nodeSet.Status.Conditions.Mirror(condition.ReadyCondition)
 				if mirroredCondition != nil {
-					logger.Info("Role", "Status", mirroredCondition.Message, "Role.Namespace", instance.Namespace, "Role.Name", role.Name)
+					logger.Info("NodeSet", "Status", mirroredCondition.Message, "NodeSet.Namespace", instance.Namespace, "NodeSet.Name", nodeSet.Name)
 					if condition.IsError(mirroredCondition) {
-						deployErrors = append(deployErrors, "role.Name: "+role.Name+" error: "+mirroredCondition.Message)
+						deployErrors = append(deployErrors, "nodeSet.Name: "+nodeSet.Name+" error "+mirroredCondition.Message)
 					}
 				}
+			}
 
+			if nodeSet.IsReady() {
+				// Remove deploy annotation to avoid re-triggering deployment when nodeSet IsReady()
+				logger.Info("removing annotation from Ready nodeSet")
+				err := edpmDeployAnnotation.removeNodeSetAnnotation(ctx, helper, &nodeSet)
+				if err != nil {
+					deployErrors = append(deployErrors, "nodeSet.Name: "+nodeSet.Name+" error removing annotation: "+err.Error())
+				}
 			}
 		}
 	}
@@ -178,7 +238,7 @@ func (r *OpenStackDataPlaneReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, err
 	}
 	if shouldRequeue {
-		logger.Info("one or more roles aren't ready, requeueing")
+		logger.Info("one or more nodeSets aren't ready, requeueing")
 		return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 	}
 	if instance.Spec.DeployStrategy.Deploy && len(deployErrors) == 0 {
@@ -216,4 +276,44 @@ func (r *OpenStackDataPlaneReconciler) SetupWithManager(mgr ctrl.Manager) error 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&dataplanev1.OpenStackDataPlane{}).
 		Complete(r)
+}
+
+func (a *DataPlaneAnnotations) updateNodeSetAnnotations(ctx context.Context, h *helper.Helper, instance *dataplanev1.OpenStackDataPlaneNodeSet) (err error) {
+	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// If we fail and need to retry, we should re-check the object to obtain the currentAnnotations
+		// since they may have changed.
+		currentAnnotations := instance.ObjectMeta.GetAnnotations()
+
+		// Merge the desired and current label maps
+		mergedAnnotations := make(map[string]string)
+		for k, v := range currentAnnotations {
+			mergedAnnotations[k] = v
+		}
+		for k, v := range a.Annotations {
+			mergedAnnotations[k] = v
+		}
+
+		instance.ObjectMeta.SetAnnotations(mergedAnnotations)
+		updateErr := h.PatchInstance(ctx, instance)
+		return updateErr
+	})
+
+	return retryErr
+}
+
+func (a *DataPlaneAnnotations) removeNodeSetAnnotation(ctx context.Context, h *helper.Helper, instance *dataplanev1.OpenStackDataPlaneNodeSet) (err error) {
+	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// Check current annotation each retry
+		appliedAnnotations := instance.ObjectMeta.GetAnnotations()
+
+		// Remove the annotationName from annotations
+		delete(appliedAnnotations, a.Name)
+
+		// Apply changes
+		instance.ObjectMeta.SetAnnotations(appliedAnnotations)
+		updateErr := h.PatchInstance(ctx, instance)
+		return updateErr
+	})
+
+	return retryErr
 }

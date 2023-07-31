@@ -63,9 +63,11 @@ type NodeSection struct {
 	// AnsiblePort SSH port for Ansible connection
 	AnsiblePort int `json:"ansiblePort,omitempty"`
 
+	// +kubebuilder:pruning:PreserveUnknownFields
+ 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:validation:Optional
 	// AnsibleVars for configuring ansible
-	AnsibleVars string `json:"ansibleVars,omitempty"`
+	AnsibleVars map[string]json.RawMessage `json:"ansibleVars,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,xDescriptors={"urn:alm:descriptor:io.kubernetes:Secret"}

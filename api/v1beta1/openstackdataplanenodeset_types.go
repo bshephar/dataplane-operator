@@ -33,15 +33,7 @@ type OpenStackDataPlaneNodeSetSpec struct {
 	DataPlane string `json:"dataPlane,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	// +operator-sdk:csv:customresourcedefinitions:type=spec,xDescriptors={"urn:alm:descriptor:io.kubernetes:Secret"}
-	// AnsibleSSHPrivateKeySecret Private SSH Key secret containing private SSH
-	// key for connecting to node. Must be of the form:
-	// Secret.data.ssh-privatekey: <base64 encoded private key contents>
-	// <https://kubernetes.io/docs/concepts/configuration/secret/#ssh-authentication-secrets>
-	AnsibleSSHPrivateKeySecret string `json:"ansibleSSHPrivateKeySecret,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	// BaremetalSetTemplate Template for BaremetalSet for the Role
+	// BaremetalSetTemplate Template for BaremetalSet for the NodeSet
 	BaremetalSetTemplate baremetalv1.OpenStackBaremetalSetSpec `json:"baremetalSetTemplate,omitempty"`
 
 	// +kubebuilder:validation:Required
@@ -82,8 +74,8 @@ type OpenStackDataPlaneNodeSetSpec struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
-//+operator-sdk:csv:customresourcedefinitions:displayName="OpenStack Data Plane Role"
-// +kubebuilder:resource:shortName=osdprole;osdproles
+//+operator-sdk:csv:customresourcedefinitions:displayName="OpenStack Data Plane NodeSet"
+// +kubebuilder:resource:shortName=osdpnodeset;osdpnodesets
 //+kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.conditions[0].status",description="Status"
 //+kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[0].message",description="Message"
 
@@ -122,9 +114,9 @@ func (instance *OpenStackDataPlaneNodeSet) InitConditions() {
 		condition.UnknownCondition(condition.DeploymentReadyCondition, condition.InitReason, condition.InitReason),
 		condition.UnknownCondition(condition.InputReadyCondition, condition.InitReason, condition.InitReason),
 		condition.UnknownCondition(SetupReadyCondition, condition.InitReason, condition.InitReason),
-		condition.UnknownCondition(RoleBareMetalProvisionReadyCondition, condition.InitReason, condition.InitReason),
-		condition.UnknownCondition(RoleIPReservationReadyCondition, condition.InitReason, condition.InitReason),
-		condition.UnknownCondition(RoleDNSDataReadyCondition, condition.InitReason, condition.InitReason),
+		condition.UnknownCondition(NodeSetBareMetalProvisionReadyCondition, condition.InitReason, condition.InitReason),
+		condition.UnknownCondition(NodeSetIPReservationReadyCondition, condition.InitReason, condition.InitReason),
+		condition.UnknownCondition(NodeSetDNSDataReadyCondition, condition.InitReason, condition.InitReason),
 	)
 
 	if instance.Spec.Services != nil {
@@ -135,12 +127,10 @@ func (instance *OpenStackDataPlaneNodeSet) InitConditions() {
 	}
 
 	haveCephSecret := false
-	for _, node := range instance.Spec.NodeTemplate.Nodes {
-		for _, extraMount := range node.ExtraMounts {
-			if extraMount.ExtraVolType == "Ceph" {
-				haveCephSecret = true
-				break
-			}
+	for _, extraMount := range instance.Spec.NodeTemplate.ExtraMounts {
+		if extraMount.ExtraVolType == "Ceph" {
+			haveCephSecret = true
+			break
 		}
 	}
 

@@ -78,9 +78,9 @@ func DeployBaremetalSet(
 
 	if err != nil {
 		instance.Status.Conditions.MarkFalse(
-			dataplanev1.RoleBareMetalProvisionReadyCondition,
+			dataplanev1.NodeSetBareMetalProvisionReadyCondition,
 			condition.ErrorReason, condition.SeverityError,
-			dataplanev1.RoleBaremetalProvisionErrorMessage)
+			dataplanev1.NodeSetBaremetalProvisionErrorMessage)
 		return false, err
 	}
 
@@ -88,14 +88,14 @@ func DeployBaremetalSet(
 	if !baremetalSet.IsReady() {
 		utils.LogForObject(helper, "BaremetalSet not ready, waiting...", instance)
 		instance.Status.Conditions.MarkFalse(
-			dataplanev1.RoleBareMetalProvisionReadyCondition,
+			dataplanev1.NodeSetBareMetalProvisionReadyCondition,
 			condition.RequestedReason, condition.SeverityInfo,
-			dataplanev1.RoleBaremetalProvisionReadyWaitingMessage)
+			dataplanev1.NodeSetBaremetalProvisionReadyWaitingMessage)
 		return false, nil
 	}
 	instance.Status.Conditions.MarkTrue(
-		dataplanev1.RoleBareMetalProvisionReadyCondition,
-		dataplanev1.RoleBaremetalProvisionReadyMessage)
+		dataplanev1.NodeSetBareMetalProvisionReadyCondition,
+		dataplanev1.NodeSetBaremetalProvisionReadyMessage)
 	return true, nil
 }
 
