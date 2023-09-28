@@ -72,7 +72,7 @@ func Deploy(
 		}
 		deployName = foundService.Name
 		deployLabel = foundService.Spec.Label
-		readyCondition = condition.Type(fmt.Sprintf(dataplanev1.NodeSetServiceDeploymentReadyCondition, nodeSet.Name, service))
+		readyCondition = condition.ReadyCondition
 		readyWaitingMessage = fmt.Sprintf(dataplanev1.NodeSetServiceDeploymentReadyWaitingMessage, nodeSet.Name, deployName)
 		readyMessage = fmt.Sprintf(dataplanev1.NodeSetServiceDeploymentReadyMessage, nodeSet.Name, deployName)
 		readyErrorMessage = fmt.Sprintf(dataplanev1.NodeSetServiceDeploymentErrorMessage, nodeSet.Name, deployName)

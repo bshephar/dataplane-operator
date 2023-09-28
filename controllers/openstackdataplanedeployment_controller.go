@@ -195,6 +195,9 @@ func (r *OpenStackDataPlaneDeploymentReconciler) Reconcile(ctx context.Context, 
 		instance.Status.Conditions.Set(condition.FalseCondition(
 			condition.DeploymentReadyCondition, condition.RequestedReason,
 			condition.SeverityInfo, condition.DeploymentReadyRunningMessage))
+		nodeSet.Status.Conditions.Set(condition.FalseCondition(
+			condition.DeploymentReadyCondition, condition.RequestedReason,
+			condition.SeverityInfo, condition.DeploymentReadyRunningMessage))
 		ansibleEESpec := nodeSet.GetAnsibleEESpec()
 		ansibleEESpec.AnsibleTags = instance.Spec.AnsibleTags
 		ansibleEESpec.AnsibleSkipTags = instance.Spec.AnsibleSkipTags
